@@ -1,0 +1,59 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.5.5'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.inforsion'
+version = '0.0.1-SNAPSHOT'
+description = 'fingrow'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Spring Boot Starters
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'        // JPA 데이터 액세스
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-authorization-server'  // OAuth2 인증 서버
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'   // OAuth2 클라이언트
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'  // OAuth2 리소스 서버
+    implementation 'org.springframework.boot:spring-boot-starter-validation'     // Bean 검증
+    implementation 'org.springframework.boot:spring-boot-starter-web'            // Spring MVC 웹 애플리케이션
+    
+    // Development Tools
+    compileOnly 'org.projectlombok:lombok'                                       // 롬복 컴파일 타임 의존성
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'              // 개발 도구
+    
+    // Database
+    runtimeOnly 'com.mysql:mysql-connector-j'                                    // MySQL 데이터베이스 드라이버
+    
+    // JWT
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.3'                            // JWT API
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.3'                             // JWT 구현체
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.3'                          // JWT Jackson 어댑터
+    
+    // Annotation Processing
+    annotationProcessor 'org.projectlombok:lombok'                               // 롬복 애노테이션 프로세서
+    
+    // Test Dependencies
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'       // Spring Boot 테스트 도구
+    testImplementation 'org.springframework.security:spring-security-test'       // Spring Security 테스트 도구
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'                // JUnit 플랫폼 런처
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
