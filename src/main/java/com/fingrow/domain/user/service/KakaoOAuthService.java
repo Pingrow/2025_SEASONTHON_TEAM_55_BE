@@ -5,11 +5,12 @@ import com.fingrow.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.*;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.BodyInserters;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.Map;
 
@@ -19,7 +20,7 @@ import java.util.Map;
 public class KakaoOAuthService {
 
     private final UserRepository userRepository;
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final WebClient webClient;
 
     @Value("${spring.security.oauth2.client.registration.kakao.client-id}")
     private String clientId;
@@ -42,11 +43,6 @@ public class KakaoOAuthService {
     }
 
     private String getKakaoAccessToken(String authorizationCode) {
-        String tokenUrl = "https://kauth.kakao.com/oauth/token";
-        
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-        
         MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
         body.add("grant_type", "authorization_code");
         body.add("client_id", clientId);
@@ -54,12 +50,16 @@ public class KakaoOAuthService {
         body.add("redirect_uri", redirectUri);
         body.add("code", authorizationCode);
         
-        HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
-        
         try {
-            ResponseEntity<Map> response = restTemplate.exchange(tokenUrl, HttpMethod.POST, request, Map.class);
-            Map<String, Object> responseBody = response.getBody();
-            return (String) responseBody.get("access_token");
+            Map<String, Object> response = webClient.post()
+                    .uri("https://kauth.kakao.com/oauth/token")
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .body(BodyInserters.fromFormData(body))
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block();
+            
+            return (String) response.get("access_token");
         } catch (Exception e) {
             log.error("Failed to get Kakao access token", e);
             throw new RuntimeException("카카오 액세스 토큰 획득에 실패했습니다.");
@@ -67,16 +67,13 @@ public class KakaoOAuthService {
     }
 
     private Map<String, Object> getKakaoUserInfo(String accessToken) {
-        String userInfoUrl = "https://kapi.kakao.com/v2/user/me";
-        
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("Authorization", "Bearer " + accessToken);
-        
-        HttpEntity<String> request = new HttpEntity<>(headers);
-        
         try {
-            ResponseEntity<Map> response = restTemplate.exchange(userInfoUrl, HttpMethod.GET, request, Map.class);
-            return response.getBody();
+            return webClient.get()
+                    .uri("https://kapi.kakao.com/v2/user/me")
+                    .header("Authorization", "Bearer " + accessToken)
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block();
         } catch (Exception e) {
             log.error("Failed to get Kakao user info", e);
             throw new RuntimeException("카카오 사용자 정보 조회에 실패했습니다.");

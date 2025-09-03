@@ -1,10 +1,8 @@
-version: '3.8'
-
 services:
   mysql:
     image: mysql:8.0
     container_name: fingrow-mysql
-    restart: unless-stopped
+    restart: "no"
     environment:
       MYSQL_DATABASE: fingrow
       MYSQL_USER: fingrow
@@ -25,13 +23,19 @@ services:
   app:
     build: .
     container_name: fingrow-app
-    restart: unless-stopped
+    restart: "no"
     ports:
       - "8080:8080"
     environment:
       - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/fingrow?serverTimezone=UTC&characterEncoding=UTF-8&useSSL=false&allowPublicKeyRetrieval=true
-      - SPRING_DATASOURCE_USERNAME=fingrow
-      - SPRING_DATASOURCE_PASSWORD=fingrow123
+      - SPRING_DATASOURCE_USERNAME=${DB_USERNAME}
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_ACCESS_TOKEN_VALIDITY_IN_SECONDS=${JWT_ACCESS_TOKEN_VALIDITY}
+      - JWT_REFRESH_TOKEN_VALIDITY_IN_SECONDS=${JWT_REFRESH_TOKEN_VALIDITY}
+      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_KAKAO_CLIENT_ID=${KAKAO_CLIENT_ID}
+      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_KAKAO_CLIENT_SECRET=${KAKAO_CLIENT_SECRET}
+      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_KAKAO_REDIRECT_URI=${KAKAO_REDIRECT_URI}
     depends_on:
       mysql:
         condition: service_healthy

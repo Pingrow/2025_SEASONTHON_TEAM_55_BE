@@ -1,5 +1,6 @@
 package com.fingrow.domain.user.entity;
 
+import com.fingrow.domain.onboard.entity.InvestmentPreference;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -46,6 +47,9 @@ public class User {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private InvestmentPreference investmentPreference;
 
     @Builder
     public User(String email, String name, String profileImage, Provider provider, String providerId, Role role) {
