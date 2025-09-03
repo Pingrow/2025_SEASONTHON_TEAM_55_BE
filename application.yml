@@ -25,6 +25,17 @@ logging:
 server:
   port: 8080
 
+# Swagger/OpenAPI 설정
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    operations-sorter: alpha
+    tags-sorter: alpha
+  packages-to-scan: com.fingrow
+
 # JWT 설정
 jwt:
   secret: fingrow-jwt-secret-key-for-token-generation-and-validation-2024

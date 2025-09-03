@@ -49,6 +49,9 @@ dependencies {
     // WebFlux
     implementation 'org.springframework.boot:spring-boot-starter-webflux'        // WebFlux 리액티브 웹
     
+    // Swagger/OpenAPI
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.2.0'   // Swagger UI for Spring Boot 3
+    
     // Annotation Processing
     annotationProcessor 'org.projectlombok:lombok'                               // 롬복 애노테이션 프로세서
     
