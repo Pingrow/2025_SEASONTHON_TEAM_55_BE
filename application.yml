@@ -31,13 +31,13 @@ jwt:
   access-token-validity-in-seconds: 3600  # 1시간
   refresh-token-validity-in-seconds: 1209600  # 2주
 
-# OAuth2 설정  
-spring:
-  security:
-    oauth2:
-      client:
-        registration:
-          kakao:
-            client-id: your-kakao-client-id
-            client-secret: your-kakao-client-secret
-            redirect-uri: http://localhost:3000/oauth/callback/kakao
+# OAuth2 설정 (현재 주석 처리)
+# spring:
+#   security:
+#     oauth2:
+#       client:
+#         registration:
+#           kakao:
+#             client-id: your-kakao-client-id
+#             client-secret: your-kakao-client-secret
+#             redirect-uri: http://localhost:3000/oauth/callback/kakao

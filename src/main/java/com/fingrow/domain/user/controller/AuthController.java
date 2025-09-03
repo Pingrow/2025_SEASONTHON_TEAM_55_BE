@@ -22,8 +22,9 @@ public class AuthController {
 
     private final JwtUtil jwtUtil;
     private final UserRepository userRepository;
-    private final KakaoOAuthService kakaoOAuthService;
+    // private final KakaoOAuthService kakaoOAuthService;  // OAuth2 의존성 제거로 임시 비활성화
 
+    /*
     @PostMapping("/kakao")
     public ResponseEntity<?> kakaoLogin(@RequestBody Map<String, String> request) {
         try {
@@ -59,6 +60,7 @@ public class AuthController {
             return ResponseEntity.badRequest().body("로그인에 실패했습니다: " + e.getMessage());
         }
     }
+    */
 
     @PostMapping("/refresh")
     public ResponseEntity<?> refreshToken(@RequestBody Map<String, String> request) {
