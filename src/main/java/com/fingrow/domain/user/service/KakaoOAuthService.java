@@ -15,7 +15,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import java.util.Map;
 
 @Slf4j
-// @Service  // OAuth2 의존성 제거로 임시 비활성화
+@Service
 @RequiredArgsConstructor
 public class KakaoOAuthService {
 
