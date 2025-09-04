@@ -1,5 +1,5 @@
 ---
-name: Refartor
+name: Refactor
 about: 기능을 수정합니다.
 title: "[Refactor]"
 labels: enhancement
