@@ -5,13 +5,10 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-
 import java.util.List;
 
-// 예금 옵션 Repository
 @Repository
 public interface DepositOptionRepository extends JpaRepository<DepositOption, Long> {
-
     // 특정 상품의 옵션들 조회
     List<DepositOption> findByDepositProductFinPrdtCd(String finPrdtCd);
 
