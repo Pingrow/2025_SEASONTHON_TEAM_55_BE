@@ -56,7 +56,9 @@ public class FinancialProductService {
 
             // 기존 데이터 삭제
             depositOptionRepository.deleteAll();
+            depositOptionRepository.flush();
             depositProductRepository.deleteAll();
+            depositProductRepository.flush();
             log.info("기존 예금 데이터 삭제 완료");
 
             // 상품 정보 저장
@@ -129,7 +131,9 @@ public class FinancialProductService {
 
             // 기존 데이터 삭제
             savingOptionRepository.deleteAll();
+            savingOptionRepository.flush();
             savingProductRepository.deleteAll();
+            savingProductRepository.flush();
             log.info("기존 적금 데이터 삭제 완료");
 
             // 상품 정보 저장
@@ -194,8 +198,8 @@ public class FinancialProductService {
      * 목표 기반 상품 추천
      */
     public RecommendationResponse recommendProducts(RecommendationRequest request) {
-        log.info("상품 추천 요청: 목표금액={}, 목표기간={}개월, 월예산={}",
-                request.getTargetAmount(), request.getTargetMonths(), request.getMonthlyBudget());
+        log.info("상품 추천 요청: 목표금액={}, 목표기간={}개월, 현재보유={}",
+                request.getTargetAmount(), request.getTargetMonths(), request.getCurrentAmount());
 
         List<ProductRecommendation> recommendations = new ArrayList<>();
 
@@ -223,7 +227,6 @@ public class FinancialProductService {
         return RecommendationResponse.builder()
                 .targetAmount(request.getTargetAmount())
                 .targetMonths(request.getTargetMonths())
-                .monthlyBudget(request.getMonthlyBudget())
                 .recommendations(recommendations)
                 .optimalCombination(combination)
                 .totalProducts(recommendations.size())
@@ -236,6 +239,7 @@ public class FinancialProductService {
     private List<DepositProduct> getTopDepositProducts(Integer term, int limit) {
         List<DepositProduct> products = depositProductRepository.findByTermOrderByBestRateDesc(term);
         return products.stream()
+                .distinct()
                 .limit(limit)
                 .collect(Collectors.toList());
     }
@@ -246,13 +250,13 @@ public class FinancialProductService {
     private List<SavingProduct> getTopSavingProducts(Integer term, int limit) {
         List<SavingProduct> products = savingProductRepository.findByTermOrderByBestRateDesc(term);
         return products.stream()
+                .distinct()
                 .limit(limit)
                 .collect(Collectors.toList());
     }
 
     /**
-     * 예금 상품 추천 생성
-     * 🔧 수정: Long → double 변환 이슈 해결
+     * 예금 상품 추천 생성 - 간소화된 버전
      */
     private ProductRecommendation createDepositRecommendation(DepositProduct deposit, RecommendationRequest request) {
         DepositOption bestOption = deposit.getOptions().stream()
@@ -265,10 +269,12 @@ public class FinancialProductService {
         }
 
         double expectedAmount = calculateDepositReturn(
-                (double) request.getTargetAmount(),  // 🔧 수정: Long.doubleValue() → (double) 캐스팅
+                (double) request.getTargetAmount(),
                 bestOption.getBestRate(),
                 request.getTargetMonths()
         );
+
+        double expectedReturn = expectedAmount - (double) request.getTargetAmount();
 
         return ProductRecommendation.builder()
                 .productType("예금")
@@ -276,22 +282,20 @@ public class FinancialProductService {
                 .productName(deposit.getFinPrdtNm())
                 .interestRate(bestOption.getBestRate())
                 .term(bestOption.getSaveTrm())
-                .expectedReturn(expectedAmount - (double) request.getTargetAmount())  // 🔧 수정: Long → double 캐스팅
-                .expectedTotalAmount(expectedAmount)
-                .specialCondition(deposit.getSpclCnd())
-                .joinWay(deposit.getJoinWay())
-                .maxLimit(deposit.getMaxLimit())
-                .initialAmount((double) request.getTargetAmount())  // 🔧 수정: Long → double 캐스팅
-                .monthlyAmount(0.0)
-                .riskLevel("매우낮음")
+                .expectedReturn(expectedReturn)
+                .inputAmount(request.getTargetAmount())
+                .maturityAmount((long) expectedAmount)
+                .monthlyAmount(null) // 예금은 null
                 .build();
     }
 
     /**
-     * 적금 상품 추천 생성
-     * 🔧 수정: Long → double 변환 이슈 해결
+     * 적금 상품 추천 생성 - 간소화된 버전
      */
     private ProductRecommendation createSavingRecommendation(SavingProduct saving, RecommendationRequest request) {
+        // 현재 보유 금액 고려한 부족 금액 계산
+        long remainingAmount = request.getTargetAmount() - (request.getCurrentAmount() != null ? request.getCurrentAmount() : 0L);
+
         SavingOption bestOption = saving.getOptions().stream()
                 .filter(o -> o.getSaveTrm().equals(request.getTargetMonths()))
                 .max(Comparator.comparing(SavingOption::getBestRate))
@@ -301,8 +305,9 @@ public class FinancialProductService {
             return null;
         }
 
-        double monthlyAmount = (double) request.getTargetAmount() / request.getTargetMonths();  // 🔧 수정: Long → double 캐스팅
+        double monthlyAmount = (double) remainingAmount / request.getTargetMonths();
         double expectedAmount = bestOption.calculateExpectedReturn(monthlyAmount, request.getTargetMonths());
+        double expectedReturn = expectedAmount - (double) remainingAmount;
 
         return ProductRecommendation.builder()
                 .productType("적금")
@@ -310,21 +315,15 @@ public class FinancialProductService {
                 .productName(saving.getFinPrdtNm())
                 .interestRate(bestOption.getBestRate())
                 .term(bestOption.getSaveTrm())
-                .expectedReturn(expectedAmount - (double) request.getTargetAmount())  // 🔧 수정: Long → double 캐스팅
-                .expectedTotalAmount(expectedAmount)
-                .specialCondition(saving.getSpclCnd())
-                .joinWay(saving.getJoinWay())
-                .maxLimit(saving.getMaxLimit())
-                .initialAmount(0.0)
-                .monthlyAmount(monthlyAmount)
-                .reserveType(bestOption.getRsrvTypeNm())
-                .riskLevel("매우낮음")
+                .expectedReturn(expectedReturn)
+                .inputAmount(null) // 적금은 null
+                .maturityAmount((long) expectedAmount)
+                .monthlyAmount((long) monthlyAmount)
                 .build();
     }
 
     /**
      * 예금 수익률 계산 (단리)
-     * 🔧 수정: 파라미터 타입 Double → double로 변경
      */
     private double calculateDepositReturn(double principal, Double rate, Integer months) {
         if (rate == null || rate <= 0) return principal;
@@ -333,60 +332,100 @@ public class FinancialProductService {
 
     /**
      * 최적 조합 계산
-     * 🔧 수정: Long → double 변환 이슈 해결
      */
     private OptimalCombination calculateOptimalCombination(RecommendationRequest request) {
-        // 50:50 예적금 조합 예시
-        long depositAmount = request.getTargetAmount() / 2;
-        long savingTotalAmount = request.getTargetAmount() - depositAmount;
+        long currentAmount = request.getCurrentAmount() != null ? request.getCurrentAmount() : 0L;
+        long remainingAmount = request.getTargetAmount() - currentAmount;
+        long depositAmount = Math.min(currentAmount, request.getTargetAmount() / 2); // 현재 보유액은 예금으로
+        long savingTotalAmount = remainingAmount; // 부족분은 적금으로
         double savingMonthlyAmount = (double) savingTotalAmount / request.getTargetMonths();
 
-        // 최고 금리 상품들로 수익률 계산
-        List<DepositProduct> topDeposits = getTopDepositProducts(request.getTargetMonths(), 1);
-        List<SavingProduct> topSavings = getTopSavingProducts(request.getTargetMonths(), 1);
-
+        List<CombinationProduct> products = new ArrayList<>();
         double totalExpectedReturn = 0.0;
 
+        // 예금 상품 추가
+        List<DepositProduct> topDeposits = getTopDepositProducts(request.getTargetMonths(), 1);
         if (!topDeposits.isEmpty()) {
             DepositProduct deposit = topDeposits.get(0);
-            DepositOption bestDepositOption = deposit.getOptions().stream()
+            DepositOption bestOption = deposit.getOptions().stream()
                     .filter(o -> o.getSaveTrm().equals(request.getTargetMonths()))
                     .max(Comparator.comparing(DepositOption::getBestRate))
                     .orElse(null);
 
-            if (bestDepositOption != null) {
-                double depositReturn = calculateDepositReturn(
-                        (double) depositAmount,  // 🔧 수정: Long → double 캐스팅
-                        bestDepositOption.getBestRate(),
-                        request.getTargetMonths()
+            if (bestOption != null) {
+                double maturityAmount = calculateDepositReturn(
+                        (double) depositAmount, bestOption.getBestRate(), request.getTargetMonths()
                 );
-                totalExpectedReturn += (depositReturn - (double) depositAmount);  // 🔧 수정: Long → double 캐스팅
+                double expectedReturn = maturityAmount - depositAmount;
+                totalExpectedReturn += expectedReturn;
+
+                products.add(CombinationProduct.builder()
+                        .productType("예금")
+                        .bankName(deposit.getKorCoNm())
+                        .productName(deposit.getFinPrdtNm())
+                        .term(bestOption.getSaveTrm())
+                        .interestRate(bestOption.getBestRate())
+                        .specialCondition(deposit.getSpclCnd())
+                        // 예금 전용 필드
+                        .depositAmount(depositAmount)
+                        .maturityAmount((long) maturityAmount)
+                        // 적금 필드는 null
+                        .monthlyAmount(null)
+                        .totalSavingAmount(null)
+                        .savingMaturityAmount(null)
+                        // 공통 필드
+                        .expectedReturn(expectedReturn)
+                        .build());
             }
         }
 
+        // 적금 상품 추가
+        List<SavingProduct> topSavings = getTopSavingProducts(request.getTargetMonths(), 1);
         if (!topSavings.isEmpty()) {
             SavingProduct saving = topSavings.get(0);
-            SavingOption bestSavingOption = saving.getOptions().stream()
+            SavingOption bestOption = saving.getOptions().stream()
                     .filter(o -> o.getSaveTrm().equals(request.getTargetMonths()))
                     .max(Comparator.comparing(SavingOption::getBestRate))
                     .orElse(null);
 
-            if (bestSavingOption != null) {
-                double savingReturn = bestSavingOption.calculateExpectedReturn(
+            if (bestOption != null) {
+                double savingMaturityAmount = bestOption.calculateExpectedReturn(
                         savingMonthlyAmount, request.getTargetMonths()
                 );
-                totalExpectedReturn += (savingReturn - (double) savingTotalAmount);  // 🔧 수정: Long → double 캐스팅
+                double expectedReturn = savingMaturityAmount - savingTotalAmount;
+                totalExpectedReturn += expectedReturn;
+
+                products.add(CombinationProduct.builder()
+                        .productType("적금")
+                        .bankName(saving.getKorCoNm())
+                        .productName(saving.getFinPrdtNm())
+                        .term(bestOption.getSaveTrm())
+                        .interestRate(bestOption.getBestRate())
+                        .specialCondition(saving.getSpclCnd())
+                        // 예금 필드는 null
+                        .depositAmount(null)
+                        .maturityAmount(null)
+                        // 적금 전용 필드
+                        .monthlyAmount((long) savingMonthlyAmount)
+                        .totalSavingAmount(savingTotalAmount)
+                        .savingMaturityAmount((long) savingMaturityAmount)
+                        // 공통 필드
+                        .expectedReturn(expectedReturn)
+                        .build());
             }
         }
 
+        // 조합 요약 생성
+        String combinationSummary = String.format("월 %.0f만원 · %d개월 · 예금+적금 혼합",
+                savingMonthlyAmount / 10000.0, request.getTargetMonths());
+
         return OptimalCombination.builder()
-                .depositAmount(depositAmount)
-                .savingMonthlyAmount((long) savingMonthlyAmount)  // 🔧 수정: double → Long 캐스팅
+                .products(products)
+                .combinationSummary(combinationSummary)
                 .totalExpectedReturn(totalExpectedReturn)
-                .expectedTotalAmount((double) request.getTargetAmount() + totalExpectedReturn)  // 🔧 수정: Long → double 캐스팅
+                .expectedTotalAmount((double) request.getTargetAmount() + totalExpectedReturn)
                 .riskLevel("낮음")
-                .description(String.format("예금 %d만원 + 적금 월 %.0f만원의 안정적인 조합",
-                        depositAmount / 10000, savingMonthlyAmount / 10000))
+                .description("최고 금리 예금과 적금의 최적 조합")
                 .build();
     }
 
@@ -419,11 +458,69 @@ public class FinancialProductService {
         List<SavingProduct> savings = savingProductRepository.findByFinPrdtNmContaining(keyword);
         savings.addAll(savingProductRepository.findByKorCoNmContaining(keyword));
 
+        List<ProductSummaryDto> allProducts = new ArrayList<>();
+
+        // 예금 변환
+        deposits.stream().distinct().forEach(d -> allProducts.add(convertDepositToSummary(d)));
+
+        // 적금 변환
+        savings.stream().distinct().forEach(s -> allProducts.add(convertSavingToSummary(s)));
+
         return SearchResponse.builder()
                 .keyword(keyword)
-                .depositProducts(deposits.stream().distinct().collect(Collectors.toList()))
-                .savingProducts(savings.stream().distinct().collect(Collectors.toList()))
-                .totalCount(deposits.size() + savings.size())
+                .products(allProducts)
+                .totalCount(allProducts.size())
                 .build();
+    }
+
+    // 변환 메서드들 추가
+    private ProductSummaryDto convertDepositToSummary(DepositProduct deposit) {
+        DepositOption bestOption = deposit.getOptions().stream()
+                .max(Comparator.comparing(DepositOption::getBestRate))
+                .orElse(null);
+
+        return ProductSummaryDto.builder()
+                .id(deposit.getId())
+                .bankName(deposit.getKorCoNm())
+                .productName(deposit.getFinPrdtNm())
+                .productType("예금")
+                .bestRate(bestOption != null ? bestOption.getBestRate() : 0.0)
+                .bestTerm(bestOption != null ? bestOption.getSaveTrm() : null)
+                .build();
+    }
+
+    private ProductSummaryDto convertSavingToSummary(SavingProduct saving) {
+        SavingOption bestOption = saving.getOptions().stream()
+                .max(Comparator.comparing(SavingOption::getBestRate))
+                .orElse(null);
+
+        return ProductSummaryDto.builder()
+                .id(saving.getId())
+                .bankName(saving.getKorCoNm())
+                .productName(saving.getFinPrdtNm())
+                .productType("적금")
+                .bestRate(bestOption != null ? bestOption.getBestRate() : 0.0)
+                .bestTerm(bestOption != null ? bestOption.getSaveTrm() : null)
+                .build();
+    }
+
+    private String truncateText(String text, int maxLength) {
+        if (text == null || text.length() <= maxLength) return text;
+        return text.substring(0, maxLength) + "...";
+    }
+
+    // 전체 조회용 메서드들도 추가
+    @Transactional(readOnly = true)
+    public List<ProductSummaryDto> getAllDepositProductsSummary() {
+        return depositProductRepository.findAll().stream()
+                .map(this::convertDepositToSummary)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<ProductSummaryDto> getAllSavingProductsSummary() {
+        return savingProductRepository.findAll().stream()
+                .map(this::convertSavingToSummary)
+                .collect(Collectors.toList());
     }
 }
