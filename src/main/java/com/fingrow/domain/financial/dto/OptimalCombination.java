@@ -1,11 +1,9 @@
 package com.fingrow.domain.financial.dto;
 
-import lombok.*;
 import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.*;
+import java.util.List;
 
-/**
- * 최적 조합 DTO
- */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -13,11 +11,11 @@ import io.swagger.v3.oas.annotations.media.Schema;
 @Schema(description = "최적 조합")
 public class OptimalCombination {
 
-    @Schema(description = "예금 투입 금액", example = "2500000")
-    private Long depositAmount;
+    @Schema(description = "추천 상품 리스트")
+    private List<CombinationProduct> products;
 
-    @Schema(description = "적금 월 납입 금액", example = "208333")
-    private Long savingMonthlyAmount;
+    @Schema(description = "조합 요약", example = "월 35만원 · 12개월 · 적금+채권 혼합")
+    private String combinationSummary;
 
     @Schema(description = "총 예상 수익", example = "150000")
     private Double totalExpectedReturn;

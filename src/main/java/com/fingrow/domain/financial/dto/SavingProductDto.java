@@ -1,14 +1,10 @@
 package com.fingrow.domain.financial.dto;
 
-
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
-/**
- * 적금 상품 DTO
- */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
 @Schema(description = "적금 상품 정보")
@@ -70,4 +66,3 @@ public class SavingProductDto {
     @Schema(description = "금융회사코드")
     private String finCoNo;
 }
-

@@ -1,14 +1,10 @@
 package com.fingrow.domain.financial.dto;
 
-
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
-/**
- * 예금 상품 DTO
- */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
 @Schema(description = "예금 상품 정보")
@@ -51,7 +47,7 @@ public class DepositProductDto {
     private String etcNote;
 
     @JsonProperty("max_limit")
-    @Schema(description = "최고한도", example = "없음")
+    @Schema(description = "최고한도", example = "0")
     private Long maxLimit;
 
     @JsonProperty("dcls_month")

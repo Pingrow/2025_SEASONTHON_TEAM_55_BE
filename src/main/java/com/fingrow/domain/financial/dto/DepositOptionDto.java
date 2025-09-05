@@ -1,14 +1,10 @@
 package com.fingrow.domain.financial.dto;
 
-
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
-/**
- * 예금 옵션 DTO
- */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
 @Schema(description = "예금 금리 옵션 정보")

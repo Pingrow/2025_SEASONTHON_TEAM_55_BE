@@ -1,15 +1,11 @@
 package com.fingrow.domain.financial.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
-import io.swagger.v3.oas.annotations.media.Schema;
 
-
-/**
- * 상품 추천 요청 DTO
- */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -18,8 +14,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 public class RecommendationRequest {
 
     @NotNull(message = "목표 금액은 필수입니다.")
-    @Min(value = 1000000, message = "목표 금액은 최소 100만원 이상이어야 합니다.")
-    @Schema(description = "목표 금액", example = "5000000", required = true)
+    @Min(value = 1000000, message = "목표 금액은 최소 30만원 이상이어야 합니다.")
+    @Schema(description = "목표 금액", example = "3000000", required = true)
     private Long targetAmount;
 
     @NotNull(message = "목표 기간은 필수입니다.")
@@ -28,13 +24,12 @@ public class RecommendationRequest {
     @Schema(description = "목표 기간(개월)", example = "12", required = true)
     private Integer targetMonths;
 
-    @Min(value = 0, message = "월 예산은 0원 이상이어야 합니다.")
-    @Schema(description = "월 예산 (적금용)", example = "500000")
-    private Long monthlyBudget;
-
-    @Schema(description = "선호 은행", example = "우리은행")
-    private String preferredBank;
+    @Min(value = 0, message = "현재 보유 금액은 0원 이상이어야 합니다.")
+    @Schema(description = "현재까지 모은 금액", example = "1000000")
+    @Builder.Default
+    private Long currentAmount = 0L;
 
     @Schema(description = "위험도 선호", example = "LOW", allowableValues = {"LOW", "MEDIUM", "HIGH"})
+    @Builder.Default
     private String riskPreference = "LOW";
 }

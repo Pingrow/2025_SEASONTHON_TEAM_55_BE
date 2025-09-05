@@ -1,11 +1,8 @@
 package com.fingrow.domain.financial.dto;
 
-import lombok.*;
 import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.*;
 
-/**
- * 개별 상품 추천 DTO
- */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -31,27 +28,12 @@ public class ProductRecommendation {
     @Schema(description = "예상 수익", example = "125000")
     private Double expectedReturn;
 
-    @Schema(description = "예상 총 금액", example = "5125000")
-    private Double expectedTotalAmount;
+    @Schema(description = "투입 금액", example = "2500000")
+    private Long inputAmount;
 
-    @Schema(description = "우대 조건")
-    private String specialCondition;
+    @Schema(description = "만기 금액", example = "2625000")
+    private Long maturityAmount;
 
-    @Schema(description = "가입 방법")
-    private String joinWay;
-
-    @Schema(description = "최고 한도")
-    private Long maxLimit;
-
-    @Schema(description = "초기 투입 금액", example = "5000000")
-    private Double initialAmount;
-
-    @Schema(description = "월 납입 금액", example = "0")
-    private Double monthlyAmount;
-
-    @Schema(description = "적립 유형", example = "정액적립식")
-    private String reserveType;
-
-    @Schema(description = "위험도", example = "매우낮음")
-    private String riskLevel;
+    @Schema(description = "월 납입액 (적금의 경우)", example = "200000")
+    private Long monthlyAmount;
 }
