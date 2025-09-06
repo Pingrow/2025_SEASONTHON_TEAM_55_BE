@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>카카오 로그인 테스트</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .kakao-btn {
+            background-color: #FEE500;
+            color: #181600;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 10px;
+            transition: background-color 0.3s;
+        }
+        .kakao-btn:hover {
+            background-color: #e6cc00;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border-left: 4px solid #28a745;
+        }
+        .error {
+            border-left-color: #dc3545;
+            background-color: #f8d7da;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌟 핀그로우 카카오 로그인 테스트</h1>
+        <p>카카오 로그인 기능을 테스트해보세요.</p>
+        
+        <button class="kakao-btn" onclick="kakaoLogin()">카카오로 로그인하기</button>
+        <button class="kakao-btn" onclick="getConfig()">설정 정보 가져오기</button>
+        
+        <div id="result" style="display: none;"></div>
+    </div>
+
+    <script>
+        function getConfig() {
+            fetch('/api/v1/test/config')
+                .then(response => response.json())
+                .then(data => {
+                    showResult('설정 정보를 가져왔습니다.', data);
+                    window.kakaoConfig = data;
+                })
+                .catch(error => {
+                    showResult('설정 정보를 가져오는데 실패했습니다.', error, true);
+                });
+        }
+
+        function kakaoLogin() {
+            if (!window.kakaoConfig) {
+                alert('먼저 설정 정보를 가져와주세요.');
+                return;
+            }
+
+            const { kakaoClientId, kakaoRedirectUri } = window.kakaoConfig;
+            const kakaoAuthUrl = `https://kauth.kakao.com/oauth/authorize?client_id=${kakaoClientId}&redirect_uri=${encodeURIComponent(kakaoRedirectUri)}&response_type=code`;
+            
+            showResult('카카오 로그인 페이지로 이동합니다...', { url: kakaoAuthUrl });
+            
+            setTimeout(() => {
+                window.location.href = kakaoAuthUrl;
+            }, 1000);
+        }
+
+        function showResult(message, data, isError = false) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'block';
+            resultDiv.className = isError ? 'result error' : 'result';
+            resultDiv.innerHTML = `
+                <h3>${message}</h3>
+                <pre>${JSON.stringify(data, null, 2)}</pre>
+            `;
+        }
+
+        // URL에서 인증 코드 확인 및 자동 처리
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        const error = urlParams.get('error');
+
+        if (code) {
+            showResult('✅ 1단계: 카카오 인증 코드를 받았습니다!', { 
+                authCode: code,
+                message: '자동으로 액세스 토큰을 요청합니다...'
+            });
+            
+            // 자동으로 백엔드로 코드 전송하여 토큰 교환
+            setTimeout(() => {
+                fetch('/api/v1/test/kakao/callback', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ code })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const result = {
+                            '🎉 로그인 완료': '카카오 로그인이 성공적으로 완료되었습니다!',
+                            '🔑 액세스 토큰': data.tokenInfo?.access_token || 'N/A',
+                            '🔄 리프레시 토큰': data.tokenInfo?.refresh_token || 'N/A',
+                            '⏰ 토큰 만료시간': data.tokenInfo?.expires_in ? `${data.tokenInfo.expires_in}초` : 'N/A',
+                            '👤 사용자 ID': data.userInfo?.id || 'N/A',
+                            '📧 사용자 정보': data.userInfo || {}
+                        };
+                        showResult('🎉 2단계: 액세스 토큰 발급 완료!', result);
+                    } else {
+                        showResult('❌ 토큰 교환 실패', data, true);
+                    }
+                })
+                .catch(error => {
+                    showResult('❌ 토큰 교환 중 오류 발생', error, true);
+                });
+            }, 1000);
+        } else if (error) {
+            showResult('❌ 카카오 로그인 중 오류가 발생했습니다.', { error }, true);
+        }
+
+        // 페이지 로드시 설정 정보 자동 가져오기
+        window.addEventListener('load', getConfig);
+    </script>
+</body>
+</html>

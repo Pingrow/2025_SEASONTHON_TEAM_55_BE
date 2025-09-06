@@ -1,19 +1,15 @@
 package com.fingrow.global.enums;
 
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+@Getter
+@RequiredArgsConstructor
 public enum InvestmentMethod {
-    LUMP_SUM("한번에 한 곳", "목표 금액을 한 번에 투자"),
-    REGULAR("정기적으로 한 곳", "매월 일정 금액을 한 곳에 투자"),
-    MIXED("여러 번에 걸쳐서 한 곳", "분할하여 한 곳에 투자"),
-    FLEXIBLE("여러 번에 걸쳐서 여러 곳", "분할하여 여러 곳에 분산 투자");
+    ONE_TIME_ONE_PLACE("한번에 한곳"),
+    ONE_TIME_MULTIPLE_PLACES("한번에 여러곳"),
+    MULTIPLE_TIMES_ONE_PLACE("여러번에 한곳"),
+    MULTIPLE_TIMES_MULTIPLE_PLACES("여러번에 여러곳");
 
-    private final String name;
     private final String description;
-
-    InvestmentMethod(String name, String description) {
-        this.name = name;
-        this.description = description;
-    }
-
-    public String getName() { return name; }
-    public String getDescription() { return description; }
 }

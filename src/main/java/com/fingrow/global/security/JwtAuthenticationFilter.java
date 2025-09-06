@@ -30,6 +30,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
         
+        // 인증이 필요없는 경로들 우회
+        String requestURI = request.getRequestURI();
+        log.debug("Processing request: {} {}", request.getMethod(), requestURI);
+        
+        if (isPublicPath(requestURI)) {
+            log.debug("Public path detected, skipping authentication: {}", requestURI);
+            filterChain.doFilter(request, response);
+            return;
+        }
+        
         String token = getTokenFromRequest(request);
         
         if (token != null && jwtUtil.validateToken(token)) {
@@ -43,6 +53,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
         
         filterChain.doFilter(request, response);
+    }
+    
+    private boolean isPublicPath(String requestURI) {
+        return requestURI.startsWith("/api/v1/auth/") ||
+               requestURI.startsWith("/api/public/") ||
+               requestURI.equals("/api/v1/onboard/questions") ||
+               requestURI.startsWith("/api/financial/") ||
+               requestURI.startsWith("/test/") ||
+               requestURI.startsWith("/swagger-ui/") ||
+               requestURI.startsWith("/v3/api-docs/") ||
+               requestURI.equals("/callback") ||
+               requestURI.contains("/api/v1/test/");
     }
 
     private String getTokenFromRequest(HttpServletRequest request) {

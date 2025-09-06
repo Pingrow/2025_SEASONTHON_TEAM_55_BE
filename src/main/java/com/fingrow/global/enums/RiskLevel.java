@@ -1,19 +1,16 @@
 package com.fingrow.global.enums;
 
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+@Getter
+@RequiredArgsConstructor
 public enum RiskLevel {
-    CONSERVATIVE("안전형"),       // 원금보장 중시
-    MODERATE("안정형"),          // 적당한 위험 감수
-    BALANCED("균형형"),          // 위험과 수익의 균형
-    AGGRESSIVE("적극형"),        // 높은 수익 추구
-    SPECULATIVE("공격형");       // 고위험 고수익 추구
+    STABLE("안정형"),
+    STABILITY_SEEKING("안정추구형"),
+    RISK_NEUTRAL("위험중립형"),
+    ACTIVE_INVESTMENT("적극투자형"),
+    AGGRESSIVE_INVESTMENT("공격투자형");
 
     private final String description;
-
-    RiskLevel(String description) {
-        this.description = description;
-    }
-
-    public String getDescription() {
-        return description;
-    }
 }

@@ -1,60 +1,68 @@
 package com.fingrow.domain.user.dto;
 
-import io.swagger.v3.oas.annotations.media.Schema;
+import com.fingrow.domain.user.entity.User;
 import lombok.AllArgsConstructor;
-import lombok.Data;
+import lombok.Builder;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 public class AuthDto {
 
-    @Schema(description = "토큰 갱신 요청")
-    @Data
+    @Getter
+    @Builder
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class RefreshTokenRequest {
-        @Schema(description = "Refresh Token", example = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
+    public static class LoginRequest {
+        private String email;
+        private String password;
+    }
+
+    @Getter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class LoginResponse {
+        private String accessToken;
+        private String refreshToken;
+        private UserInfo userInfo;
+    }
+
+    @Getter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class UserInfo {
+        private Long id;
+        private String email;
+        private String name;
+        private String profileImage;
+        private User.Provider provider;
+        private User.Role role;
+    }
+
+    @Getter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TokenRefreshRequest {
         private String refreshToken;
     }
 
-    @Schema(description = "토큰 갱신 응답")
-    @Data
+    @Getter
+    @Builder
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class RefreshTokenResponse {
-        @Schema(description = "새로운 Access Token", example = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
+    public static class TokenRefreshResponse {
         private String accessToken;
+        private String refreshToken;
     }
 
-    @Schema(description = "사용자 정보 응답")
-    @Data
+    @Getter
+    @Builder
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class UserInfoResponse {
-        @Schema(description = "사용자 ID", example = "1")
-        private Long id;
-        
-        @Schema(description = "이메일", example = "user@example.com")
-        private String email;
-        
-        @Schema(description = "이름", example = "홍길동")
-        private String name;
-        
-        @Schema(description = "프로필 이미지 URL", example = "https://example.com/profile.jpg")
-        private String profileImage;
-        
-        @Schema(description = "OAuth 제공자", example = "KAKAO")
-        private String provider;
-        
-        @Schema(description = "사용자 역할", example = "USER")
-        private String role;
-    }
-
-    @Schema(description = "로그아웃 응답")
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class LogoutResponse {
-        @Schema(description = "응답 메시지", example = "Successfully logged out")
-        private String message;
+    public static class KakaoLoginRequest {
+        private String code;
+        private String redirectUri;
     }
 }
