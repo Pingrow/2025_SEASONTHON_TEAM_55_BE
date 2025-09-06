@@ -46,7 +46,7 @@ public class OnboardController {
         return ResponseEntity.ok(questions);
     }
 
-    @Operation(summary = "온보딩 설문 제출", description = "사용자의 온보딩 설문을 제출하고 투자 성향을 분석합니다.")
+    @Operation(summary = "온보딩 설문 제출/다시하기", description = "사용자의 온보딩 설문을 제출하고 투자 성향을 분석합니다. 기존 설문이 있으면 업데이트합니다.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "설문 처리 및 분석 완료",
                     content = @Content(mediaType = "application/json",
@@ -63,7 +63,9 @@ public class OnboardController {
 
         try {
             if (authentication == null || !authentication.isAuthenticated()) {
-                return ResponseEntity.status(401).body("인증이 필요합니다.");
+                Map<String, String> errorResponse = new HashMap<>();
+                errorResponse.put("error", "인증이 필요합니다.");
+                return ResponseEntity.status(401).body(errorResponse);
             }
 
             String userId = (String) authentication.getPrincipal();
@@ -86,7 +88,7 @@ public class OnboardController {
         }
     }
 
-    @Operation(summary = "투자 성향 조회", description = "사용자의 현재 투자 선호도 및 성향 분석 결과를 조회합니다.")
+    @Operation(summary = "투자 성향 조회", description = "사용자의 투자 성향 분석 결과를 조회합니다.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "투자 성향 조회 성공"),
             @ApiResponse(responseCode = "401", description = "인증되지 않은 사용자"),
@@ -99,7 +101,9 @@ public class OnboardController {
 
         try {
             if (authentication == null || !authentication.isAuthenticated()) {
-                return ResponseEntity.status(401).body("인증이 필요합니다.");
+                Map<String, String> errorResponse = new HashMap<>();
+                errorResponse.put("error", "인증이 필요합니다.");
+                return ResponseEntity.status(401).body(errorResponse);
             }
 
             String userId = (String) authentication.getPrincipal();
@@ -120,11 +124,12 @@ public class OnboardController {
             response.put("riskLevel", pref.getRiskLevel());
             response.put("investmentGoal", pref.getInvestmentGoal());
             response.put("targetAmount", pref.getTargetAmount());
-            response.put("investmentPeriod", pref.getInvestmentPeriod());
+            response.put("minInvestmentPeriod", pref.getMinInvestmentPeriod());
+            response.put("maxInvestmentPeriod", pref.getMaxInvestmentPeriod());
             response.put("preferredInvestmentTypes", pref.getPreferredInvestmentTypes());
-            response.put("monthlyInvestmentAmount", pref.getMonthlyInvestmentAmount());
-            response.put("currentInvestmentExperience", pref.getCurrentInvestmentExperience());
-            response.put("additionalNotes", pref.getAdditionalNotes());
+            response.put("investmentMethod", pref.getInvestmentMethod());
+            response.put("lossTolerance", pref.getLossTolerance());
+            response.put("address", pref.getAddress());
             response.put("createdAt", pref.getCreatedAt());
             response.put("updatedAt", pref.getUpdatedAt());
 
@@ -138,98 +143,5 @@ public class OnboardController {
         }
     }
 
-    @Operation(summary = "온보딩 완료 상태 확인", description = "사용자의 온보딩 완료 여부를 확인합니다.")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "온보딩 상태 조회 성공",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(example = "{\"completed\": true, \"message\": \"온보딩이 완료되었습니다.\"}"))),
-            @ApiResponse(responseCode = "401", description = "인증되지 않은 사용자")
-    })
-    @SecurityRequirement(name = "bearerAuth")
-    @GetMapping("/status")
-    public ResponseEntity<?> getOnboardingStatus(
-            @Parameter(hidden = true) Authentication authentication) {
 
-        try {
-            if (authentication == null || !authentication.isAuthenticated()) {
-                return ResponseEntity.status(401).body("인증이 필요합니다.");
-            }
-
-            String userId = (String) authentication.getPrincipal();
-            log.info("Checking onboarding status for user: {}", userId);
-
-            Optional<InvestmentPreference> preference = onboardService.getUserInvestmentPreference(userId);
-
-            Map<String, Object> response = new HashMap<>();
-            if (preference.isPresent()) {
-                response.put("completed", true);
-                response.put("message", "온보딩이 완료되었습니다.");
-                response.put("completedAt", preference.get().getCreatedAt());
-            } else {
-                response.put("completed", false);
-                response.put("message", "온보딩을 완료해주세요.");
-            }
-
-            return ResponseEntity.ok(response);
-
-        } catch (Exception e) {
-            log.error("Error checking onboarding status", e);
-            Map<String, String> errorResponse = new HashMap<>();
-            errorResponse.put("error", "온보딩 상태 조회 중 오류가 발생했습니다.");
-            return ResponseEntity.status(500).body(errorResponse);
-        }
-    }
-
-    @Operation(summary = "투자 성향 재분석", description = "기존 설문 결과를 바탕으로 투자 성향을 다시 분석합니다.")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "재분석 완료",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = OnboardDto.InvestmentAnalysis.class))),
-            @ApiResponse(responseCode = "401", description = "인증되지 않은 사용자"),
-            @ApiResponse(responseCode = "404", description = "온보딩 정보가 없음")
-    })
-    @SecurityRequirement(name = "bearerAuth")
-    @PostMapping("/reanalyze")
-    public ResponseEntity<?> reanalyzeInvestmentProfile(
-            @Parameter(hidden = true) Authentication authentication) {
-
-        try {
-            if (authentication == null || !authentication.isAuthenticated()) {
-                return ResponseEntity.status(401).body("인증이 필요합니다.");
-            }
-
-            String userId = (String) authentication.getPrincipal();
-            log.info("Reanalyzing investment profile for user: {}", userId);
-
-            Optional<InvestmentPreference> preference = onboardService.getUserInvestmentPreference(userId);
-
-            if (preference.isEmpty()) {
-                Map<String, String> errorResponse = new HashMap<>();
-                errorResponse.put("error", "온보딩을 먼저 완료해주세요.");
-                return ResponseEntity.status(404).body(errorResponse);
-            }
-
-            // 기존 설문 데이터를 기반으로 재분석 요청 생성
-            InvestmentPreference pref = preference.get();
-            OnboardDto.SurveyRequest reanalyzeRequest = new OnboardDto.SurveyRequest();
-            reanalyzeRequest.setRiskLevel(pref.getRiskLevel());
-            reanalyzeRequest.setInvestmentGoal(pref.getInvestmentGoal());
-            reanalyzeRequest.setTargetAmount(pref.getTargetAmount());
-            reanalyzeRequest.setInvestmentPeriod(pref.getInvestmentPeriod());
-            reanalyzeRequest.setPreferredInvestmentTypes(pref.getPreferredInvestmentTypes());
-            reanalyzeRequest.setMonthlyInvestmentAmount(pref.getMonthlyInvestmentAmount());
-            reanalyzeRequest.setCurrentInvestmentExperience(pref.getCurrentInvestmentExperience());
-            reanalyzeRequest.setAdditionalNotes(pref.getAdditionalNotes());
-
-            OnboardDto.SurveyResponse response = onboardService.processSurvey(userId, reanalyzeRequest);
-
-            return ResponseEntity.ok(response.getAnalysis());
-
-        } catch (Exception e) {
-            log.error("Error during reanalysis", e);
-            Map<String, String> errorResponse = new HashMap<>();
-            errorResponse.put("error", "재분석 중 오류가 발생했습니다.");
-            return ResponseEntity.status(500).body(errorResponse);
-        }
-    }
 }

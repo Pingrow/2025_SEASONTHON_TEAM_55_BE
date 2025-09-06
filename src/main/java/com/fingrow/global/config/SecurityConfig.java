@@ -2,6 +2,7 @@ package com.fingrow.global.config;
 
 import com.fingrow.global.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -17,26 +18,37 @@ import org.springframework.web.cors.CorsConfigurationSource;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
-    // private final CorsConfigurationSource corsConfigurationSource;
+    
+    @Autowired
+    private CorsConfigurationSource corsConfigurationSource;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                // 잠깐 테스트한다고 주석처리해놨습니다.
-                // .cors(cors -> cors.configurationSource(corsConfigurationSource))
-                .cors(cors -> cors.disable())
+                // CORS 설정 활성화 - CorsConfig의 설정을 사용
+                .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/v1/auth/**").permitAll()
-                        .requestMatchers("/api/public/**").permitAll()
-                        .requestMatchers("/api/v1/test/generate-token").permitAll()
-                        .requestMatchers("/api/v1/test/validate-token").permitAll()
-                        .requestMatchers("/test/**").permitAll()
+
+                        // 온보딩 API 경로 추가 - 설문 문항 조회는 public, 나머지는 인증 필요
+                        .requestMatchers("/api/v1/onboard/questions").permitAll()
+                        
+                        // 테스트 API 경로 추가 - 테스트용 API는 public
+                        .requestMatchers("/api/v1/test/**").permitAll()
+
+                        // 카카오 콜백 경로 추가
                         .requestMatchers("/callback").permitAll()
 
-                        // 금융상품 API 경로 추가
+                        // 정적 파일 접근 허용
+                        .requestMatchers("/test/**").permitAll()
+                        .requestMatchers("/static/**").permitAll()
+                        .requestMatchers("/*.html").permitAll()
+
+                        // 금융상품 API 경로 추가 - 모든 HTTP 메서드 허용
                         .requestMatchers("/api/financial/**").permitAll()
+                        .requestMatchers("/api/financial/sync/**").permitAll()
 
                         // Swagger 관련 경로 정리(하단)
                         .requestMatchers("/swagger-ui/**").permitAll()

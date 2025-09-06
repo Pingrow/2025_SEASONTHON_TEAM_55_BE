@@ -5,11 +5,11 @@ import lombok.RequiredArgsConstructor;
 
 @Getter
 @RequiredArgsConstructor
-public enum PreferredInvestmentType {
-    DEPOSIT_SAVINGS("예/적금"),
-    ETF("ETF"),
-    GOVERNMENT_BONDS("국채"),
-    FUNDS("펀드");
+public enum LossTolerance {
+    NONE("손실 감내 못함"),
+    TEN_PERCENT("10%"),
+    TWENTY_TO_THIRTY_PERCENT("20~30%"),
+    HALF_OR_MORE("절반이상");
 
     private final String description;
 }

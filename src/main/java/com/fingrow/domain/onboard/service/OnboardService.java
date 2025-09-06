@@ -11,7 +11,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -22,14 +26,23 @@ public class OnboardService {
     private final UserRepository userRepository;
     private final InvestmentPreferenceRepository investmentPreferenceRepository;
     
+    public Optional<InvestmentPreference> getUserInvestmentPreference(String userId) {
+        Long userIdLong;
+        try {
+            userIdLong = Long.parseLong(userId);
+        } catch (NumberFormatException e) {
+            throw new RuntimeException("유효하지 않은 사용자 ID 형식입니다.");
+        }
+        
+        User user = userRepository.findById(userIdLong)
+                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+        
+        return investmentPreferenceRepository.findByUser(user);
+    }
 
-    /**
-     * 온보딩 설문을 처리하고 투자 성향을 분석합니다
-     */
     public OnboardDto.SurveyResponse processSurvey(String userId, OnboardDto.SurveyRequest request) {
         log.info("Processing onboard survey for user: {}", userId);
 
-        // 1. 사용자 조회
         Long userIdLong;
         try {
             userIdLong = Long.parseLong(userId);
@@ -40,395 +53,336 @@ public class OnboardService {
         User user = userRepository.findById(userIdLong)
                 .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
 
-        // 2. 기존 투자 선호도 조회 또는 새로 생성
         InvestmentPreference preference = getOrCreateInvestmentPreference(user, request);
-
-        // 3. 입력값 검증
-        validateInvestmentConsistency(request);
-        
-        // 4. 투자 성향 분석
         OnboardDto.InvestmentAnalysis analysis = analyzeInvestmentProfile(request);
+        RiskLevel riskLevel = determineRiskLevel(request.getLossTolerance(), request.getMinInvestmentPeriod(), request.getMaxInvestmentPeriod(), request.getPreferredInvestmentTypes());
+        List<OnboardDto.RecommendedProduct> products = createRecommendedProducts(riskLevel);
 
-        // 5. 응답 생성
-        return new OnboardDto.SurveyResponse(
-                true,
-                "투자 성향 분석이 완료되었습니다.",
-                analysis
-        );
+        return OnboardDto.SurveyResponse.builder()
+                .analysis(analysis)
+                .recommendedProducts(products)
+                .message("투자 성향 분석이 완료되었습니다.")
+                .build();
     }
 
-    /**
-     * 기존 투자 선호도를 업데이트하거나 새로 생성합니다
-     */
     private InvestmentPreference getOrCreateInvestmentPreference(User user, OnboardDto.SurveyRequest request) {
-        Optional<InvestmentPreference> existingPreference = investmentPreferenceRepository.findByUser(user);
-
-        if (existingPreference.isPresent()) {
-            // 기존 선호도 업데이트
-            InvestmentPreference preference = existingPreference.get();
+        Optional<InvestmentPreference> existing = investmentPreferenceRepository.findByUser(user);
+        
+        RiskLevel riskLevel = determineRiskLevel(request.getLossTolerance(), request.getMinInvestmentPeriod(), request.getMaxInvestmentPeriod(), request.getPreferredInvestmentTypes());
+        
+        if (existing.isPresent()) {
+            InvestmentPreference preference = existing.get();
             preference.updatePreferences(
-                    request.getRiskLevel(),
+                    riskLevel,
                     request.getInvestmentGoal(),
                     request.getTargetAmount(),
-                    request.getInvestmentPeriod(),
+                    request.getMinInvestmentPeriod(),
+                    request.getMaxInvestmentPeriod(),
                     request.getPreferredInvestmentTypes(),
-                    request.getMonthlyInvestmentAmount(),
-                    request.getCurrentInvestmentExperience(),
-                    request.getAdditionalNotes()
+                    request.getInvestmentMethod(),
+                    request.getLossTolerance(),
+                    request.getAddress()
             );
-            log.info("Updated existing investment preference for user: {}", user.getId());
             return investmentPreferenceRepository.save(preference);
         } else {
-            // 새로운 선호도 생성
             InvestmentPreference newPreference = InvestmentPreference.builder()
                     .user(user)
-                    .riskLevel(request.getRiskLevel())
+                    .riskLevel(riskLevel)
                     .investmentGoal(request.getInvestmentGoal())
                     .targetAmount(request.getTargetAmount())
-                    .investmentPeriod(request.getInvestmentPeriod())
+                    .minInvestmentPeriod(request.getMinInvestmentPeriod())
+                    .maxInvestmentPeriod(request.getMaxInvestmentPeriod())
                     .preferredInvestmentTypes(request.getPreferredInvestmentTypes())
-                    .monthlyInvestmentAmount(request.getMonthlyInvestmentAmount())
-                    .currentInvestmentExperience(request.getCurrentInvestmentExperience())
-                    .additionalNotes(request.getAdditionalNotes())
+                    .investmentMethod(request.getInvestmentMethod())
+                    .lossTolerance(request.getLossTolerance())
+                    .address(request.getAddress())
                     .build();
-            log.info("Created new investment preference for user: {}", user.getId());
             return investmentPreferenceRepository.save(newPreference);
         }
     }
 
-    /**
-     * 설문 결과를 바탕으로 투자 성향을 분석합니다
-     */
     private OnboardDto.InvestmentAnalysis analyzeInvestmentProfile(OnboardDto.SurveyRequest request) {
-        RiskLevel riskLevel = request.getRiskLevel();
+        // 손실 감내도를 기준으로 투자 성향을 결정
+        RiskLevel riskLevel = determineRiskLevel(request.getLossTolerance(), request.getMinInvestmentPeriod(), request.getMaxInvestmentPeriod(), request.getPreferredInvestmentTypes());
+        
+        String riskProfile = getRiskProfile(riskLevel);
+        String investmentStrategy = getInvestmentStrategy(riskLevel);
+        String expectedReturn = getExpectedReturn(riskLevel);
+        String recommendation = getRecommendation(riskLevel);
 
-        // 투자자 유형 결정
-        String investorType = determineInvestorType(riskLevel);
-
-        // 추천 상품 생성
-        OnboardDto.RecommendedProduct product = createRecommendedProduct(riskLevel, request.getPreferredInvestmentTypes());
-
-        // 투자 성향 설명 생성
-        String description = generateInvestorDescription(riskLevel, request.getInvestmentGoal(), request.getInvestmentPeriod());
-
-        return new OnboardDto.InvestmentAnalysis(
-                investorType,
-                riskLevel,
-                product,
-                description
-        );
+        return OnboardDto.InvestmentAnalysis.builder()
+                .riskProfile(riskProfile)
+                .investmentStrategy(investmentStrategy)
+                .expectedReturn(expectedReturn)
+                .recommendation(recommendation)
+                .build();
     }
 
-    /**
-     * 위험 수준에 따른 투자자 유형을 결정합니다
-     */
-    private String determineInvestorType(RiskLevel riskLevel) {
+    private List<OnboardDto.RecommendedProduct> createRecommendedProducts(RiskLevel riskLevel) {
+        List<OnboardDto.RecommendedProduct> products = new ArrayList<>();
+        
+        // 투자 성향에 따라 하나의 상품 종류만 추천
         switch (riskLevel) {
-            case CONSERVATIVE:
-                return "안전형 투자자";
-            case MODERATE:
-                return "안정형 투자자";
-            case BALANCED:
-                return "균형형 투자자";
-            case AGGRESSIVE:
-                return "적극형 투자자";
-            case SPECULATIVE:
-                return "공격형 투자자";
-            default:
-                return "균형형 투자자";
-        }
-    }
-
-    /**
-     * 위험 수준과 선호 투자 유형에 따른 추천 상품을 생성합니다
-     */
-    private OnboardDto.RecommendedProduct createRecommendedProduct(RiskLevel riskLevel,
-                                                                  java.util.Set<PreferredInvestmentType> preferredTypes) {
-        
-        PreferredInvestmentType recommendedType;
-        String productName;
-        String reason;
-        String expectedReturn;
-        String riskDescription;
-        
-        // 1순위: 사용자 선호 유형 중에서 위험 수준에 맞는 것 선택
-        PreferredInvestmentType userPreferred = selectFromUserPreferences(riskLevel, preferredTypes);
-        if (userPreferred != null) {
-            recommendedType = userPreferred;
-        } else {
-            // 2순위: 위험 수준에 따른 기본 추천
-            recommendedType = getDefaultRecommendation(riskLevel);
-        }
-        
-        // 상품별 정보 설정
-        switch (recommendedType) {
-            case SAVINGS:
-                productName = "고금리 정기예금/적금";
-                expectedReturn = "연 3-4%";
-                riskDescription = "매우 낮음 (원금보장)";
-                reason = "원금이 보장되어 안전하며, 예금자보호법에 의해 보호받는 상품입니다.";
+            case STABLE:
+                // 예/적금 추천
+                products.add(OnboardDto.RecommendedProduct.builder()
+                        .productType("예/적금")
+                        .productName("KB 안심 정기예금")
+                        .bankName("KB국민은행")
+                        .interestRate(new BigDecimal("3.5"))
+                        .description("원금 100% 보장되는 정기예금")
+                        .reason("안정형 투자자에게 가장 적합한 안전한 예금상품")
+                        .build());
                 break;
-            case BONDS:
-                productName = "국채/회사채";
-                expectedReturn = "연 4-6%";
-                riskDescription = "낮음";
-                reason = "정부나 우량기업에서 발행하는 채권으로 안정적인 이자수익을 제공합니다.";
+            case STABILITY_SEEKING:
+                // 예/적금 추천 (높은 금리)
+                products.add(OnboardDto.RecommendedProduct.builder()
+                        .productType("예/적금")
+                        .productName("신한 Dream 적금")
+                        .bankName("신한은행")
+                        .interestRate(new BigDecimal("4.2"))
+                        .description("우대 금리 적용 가능한 정기적금")
+                        .reason("안정성을 우선하면서도 합리적인 수익을 추구하는 분께 적합")
+                        .build());
                 break;
-            case ETF:
-                productName = "코스피/코스닥 ETF";
-                expectedReturn = "연 5-10%";
-                riskDescription = "중간";
-                reason = "시장 전체에 분산투자하여 개별 주식 위험을 줄이면서 시장 수익률을 추구합니다.";
+            case RISK_NEUTRAL:
+                // 국채 추천
+                products.add(OnboardDto.RecommendedProduct.builder()
+                        .productType("국채")
+                        .productName("3년 만기 국고채")
+                        .bankName("한국은행")
+                        .interestRate(new BigDecimal("3.8"))
+                        .description("국가 신용도를 바탕으로 한 안전한 채권")
+                        .reason("중간 정도의 위험을 감내하며 안정적인 수익을 원하는 분께 적합")
+                        .build());
                 break;
-            case FUNDS:
-                productName = "주식형/혼합형 펀드";
-                expectedReturn = "연 7-12%";
-                riskDescription = "높음";
-                reason = "전문 펀드매니저가 운용하여 높은 수익률을 추구하는 적극적인 투자상품입니다.";
+            case ACTIVE_INVESTMENT:
+                // ETF 추천
+                products.add(OnboardDto.RecommendedProduct.builder()
+                        .productType("ETF")
+                        .productName("KODEX 200")
+                        .bankName("삼성자산운용")
+                        .interestRate(new BigDecimal("7.2"))
+                        .description("코스피 200 지수를 추종하는 대표 ETF")
+                        .reason("적극적인 투자를 통해 주식시장 수익률을 추구하는 분께 적합")
+                        .build());
+                break;
+            case AGGRESSIVE_INVESTMENT:
+                // 펀드 추천
+                products.add(OnboardDto.RecommendedProduct.builder()
+                        .productType("펀드")
+                        .productName("미래에셋 글로벌 성장 펀드")
+                        .bankName("미래에셋자산운용")
+                        .interestRate(new BigDecimal("12.5"))
+                        .description("글로벌 성장주에 투자하는 적극적 운용 펀드")
+                        .reason("높은 위험을 감수하고 최대 수익을 추구하는 공격적 투자자에게 적합")
+                        .build());
                 break;
             default:
-                // BALANCED 기본값
-                recommendedType = PreferredInvestmentType.ETF;
-                productName = "코스피/코스닥 ETF";
-                expectedReturn = "연 5-10%";
-                riskDescription = "중간";
-                reason = "시장 전체에 분산투자하여 개별 주식 위험을 줄이면서 시장 수익률을 추구합니다.";
+                products.add(OnboardDto.RecommendedProduct.builder()
+                        .productType("예/적금")
+                        .productName("기본 정기예금")
+                        .bankName("우리은행")
+                        .interestRate(new BigDecimal("3.0"))
+                        .description("기본적인 예금상품")
+                        .reason("안전한 투자를 원하는 분께 추천")
+                        .build());
         }
         
-        return new OnboardDto.RecommendedProduct(
-                recommendedType, 
-                productName, 
-                reason, 
-                expectedReturn, 
-                riskDescription
-        );
-    }
-    
-    /**
-     * 사용자 선호 유형 중에서 위험 수준에 적합한 것을 선택합니다
-     */
-    private PreferredInvestmentType selectFromUserPreferences(RiskLevel riskLevel, 
-                                                            java.util.Set<PreferredInvestmentType> preferredTypes) {
-        
-        switch (riskLevel) {
-            case CONSERVATIVE:
-                // 안전 지향: 예금 > 채권 순으로 선호
-                if (preferredTypes.contains(PreferredInvestmentType.SAVINGS)) {
-                    return PreferredInvestmentType.SAVINGS;
-                }
-                if (preferredTypes.contains(PreferredInvestmentType.BONDS)) {
-                    return PreferredInvestmentType.BONDS;
-                }
-                break;
-                
-            case MODERATE:
-                // 보수적: 채권 > 예금 > ETF 순으로 선호  
-                if (preferredTypes.contains(PreferredInvestmentType.BONDS)) {
-                    return PreferredInvestmentType.BONDS;
-                }
-                if (preferredTypes.contains(PreferredInvestmentType.SAVINGS)) {
-                    return PreferredInvestmentType.SAVINGS;
-                }
-                if (preferredTypes.contains(PreferredInvestmentType.ETF)) {
-                    return PreferredInvestmentType.ETF;
-                }
-                break;
-                
-            case BALANCED:
-                // 균형형: ETF > 채권 > 펀드 순으로 선호
-                if (preferredTypes.contains(PreferredInvestmentType.ETF)) {
-                    return PreferredInvestmentType.ETF;
-                }
-                if (preferredTypes.contains(PreferredInvestmentType.BONDS)) {
-                    return PreferredInvestmentType.BONDS;
-                }
-                if (preferredTypes.contains(PreferredInvestmentType.FUNDS)) {
-                    return PreferredInvestmentType.FUNDS;
-                }
-                break;
-                
-            case AGGRESSIVE:
-            case SPECULATIVE:
-                // 적극적: 펀드 > ETF 순으로 선호
-                if (preferredTypes.contains(PreferredInvestmentType.FUNDS)) {
-                    return PreferredInvestmentType.FUNDS;
-                }
-                if (preferredTypes.contains(PreferredInvestmentType.ETF)) {
-                    return PreferredInvestmentType.ETF;
-                }
-                break;
-        }
-        
-        return null; // 적합한 선호 유형이 없음
-    }
-    
-    /**
-     * 위험 수준에 따른 기본 추천 상품을 반환합니다
-     */
-    private PreferredInvestmentType getDefaultRecommendation(RiskLevel riskLevel) {
-        switch (riskLevel) {
-            case CONSERVATIVE:
-                return PreferredInvestmentType.SAVINGS;
-            case MODERATE:
-                return PreferredInvestmentType.BONDS;
-            case BALANCED:
-                return PreferredInvestmentType.ETF;
-            case AGGRESSIVE:
-            case SPECULATIVE:
-                return PreferredInvestmentType.FUNDS;
-            default:
-                return PreferredInvestmentType.ETF;
-        }
+        return products;
     }
 
-    /**
-     * 투자 성향 설명을 생성합니다
-     */
-    private String generateInvestorDescription(RiskLevel riskLevel, InvestmentGoal goal, InvestmentPeriod period) {
-        StringBuilder description = new StringBuilder();
-
-        // 위험 수준별 기본 설명
-        switch (riskLevel) {
-            case CONSERVATIVE:
-                description.append("원금 보장을 최우선으로 하며, 안전한 수익을 추구하는 신중한 투자 성향입니다. ");
-                break;
-            case MODERATE:
-                description.append("안정적인 수익을 추구하며 적당한 위험을 감수할 수 있는 투자 성향입니다. ");
-                break;
-            case BALANCED:
-                description.append("위험과 수익의 균형을 추구하며 다양한 투자 방법을 고려하는 투자 성향입니다. ");
-                break;
-            case AGGRESSIVE:
-                description.append("높은 수익을 위해 상당한 위험을 감수할 수 있는 적극적인 투자 성향입니다. ");
-                break;
-            case SPECULATIVE:
-                description.append("최고 수익을 위해 높은 위험도 기꺼이 감수하는 공격적인 투자 성향입니다. ");
-                break;
-        }
-
-        // 투자 목표에 따른 추가 설명
-        description.append(goal.getDescription()).append("을(를) 목표로 하며, ");
-
-        // 투자 기간에 따른 추가 설명
-        switch (period) {
-            case SHORT_TERM:
-                description.append("단기간 내 목표 달성을 원하는 투자 계획을 가지고 있습니다.");
-                break;
-            case MEDIUM_TERM:
-                description.append("중기적 관점에서 안정적인 자산 증식을 계획하고 있습니다.");
-                break;
-            case LONG_TERM:
-                description.append("장기적 관점에서 꾸준한 자산 성장을 추구합니다.");
-                break;
-            case VERY_LONG_TERM:
-                description.append("초장기 투자를 통한 큰 자산 증식을 목표로 합니다.");
-                break;
-        }
-
-        return description.toString();
-    }
-
-    /**
-     * 설문 문항 정보를 반환합니다
-     */
     public OnboardDto.SurveyQuestions getSurveyQuestions() {
-        return new OnboardDto.SurveyQuestions(
-                getInvestmentMethodOptions(),
-                getRiskLevelOptions(),
-                getInvestmentTypeOptions(),
-                getPeriodOptions(),
-                getGoalOptions()
-        );
+        return OnboardDto.SurveyQuestions.builder()
+                .investmentMethodOptions(getInvestmentMethodOptions())
+                .lossToleranceOptions(getLossToleranceOptions())
+                .investmentTypeOptions(getInvestmentTypeOptions())
+                .goalOptions(getGoalOptions())
+                .build();
+    }
+
+
+    private OnboardDto.GoalOption[] getGoalOptions() {
+        return new OnboardDto.GoalOption[]{
+                OnboardDto.GoalOption.builder()
+                        .value(InvestmentGoal.RETIREMENT)
+                        .label("은퇴 준비")
+                        .description("노후 자금 마련")
+                        .build(),
+                OnboardDto.GoalOption.builder()
+                        .value(InvestmentGoal.HOME_PURCHASE)
+                        .label("주택 마련")
+                        .description("내 집 마련 자금")
+                        .build()
+        };
+    }
+
+
+    private OnboardDto.InvestmentTypeOption[] getInvestmentTypeOptions() {
+        return new OnboardDto.InvestmentTypeOption[]{
+                OnboardDto.InvestmentTypeOption.builder()
+                        .value(PreferredInvestmentType.DEPOSIT_SAVINGS)
+                        .label("예/적금")
+                        .description("안전한 예금과 적금")
+                        .build(),
+                OnboardDto.InvestmentTypeOption.builder()
+                        .value(PreferredInvestmentType.ETF)
+                        .label("ETF")
+                        .description("상장지수펀드")
+                        .build(),
+                OnboardDto.InvestmentTypeOption.builder()
+                        .value(PreferredInvestmentType.GOVERNMENT_BONDS)
+                        .label("국채")
+                        .description("국가가 발행하는 채권")
+                        .build(),
+                OnboardDto.InvestmentTypeOption.builder()
+                        .value(PreferredInvestmentType.FUNDS)
+                        .label("펀드")
+                        .description("전문가가 운용하는 투자상품")
+                        .build()
+        };
     }
 
     private OnboardDto.InvestmentMethodOption[] getInvestmentMethodOptions() {
         return new OnboardDto.InvestmentMethodOption[]{
-                new OnboardDto.InvestmentMethodOption(InvestmentMethod.LUMP_SUM, "한번에 한 곳", "목표 금액을 한 번에 투자"),
-                new OnboardDto.InvestmentMethodOption(InvestmentMethod.REGULAR, "정기적으로 한 곳", "매월 일정 금액을 한 곳에 투자"),
-                new OnboardDto.InvestmentMethodOption(InvestmentMethod.MIXED, "여러 번에 걸쳐서 한 곳", "분할하여 한 곳에 투자"),
-                new OnboardDto.InvestmentMethodOption(InvestmentMethod.FLEXIBLE, "여러 번에 걸쳐서 여러 곳", "분할하여 여러 곳에 분산 투자")
+                OnboardDto.InvestmentMethodOption.builder()
+                        .value(InvestmentMethod.ONE_TIME_ONE_PLACE)
+                        .label("한번에 한곳")
+                        .description("한 번에 한 곳에 투자")
+                        .build(),
+                OnboardDto.InvestmentMethodOption.builder()
+                        .value(InvestmentMethod.ONE_TIME_MULTIPLE_PLACES)
+                        .label("한번에 여러곳")
+                        .description("한 번에 여러 곳에 분산 투자")
+                        .build(),
+                OnboardDto.InvestmentMethodOption.builder()
+                        .value(InvestmentMethod.MULTIPLE_TIMES_ONE_PLACE)
+                        .label("여러번에 한곳")
+                        .description("여러 번에 걸쳐 한 곳에 투자")
+                        .build(),
+                OnboardDto.InvestmentMethodOption.builder()
+                        .value(InvestmentMethod.MULTIPLE_TIMES_MULTIPLE_PLACES)
+                        .label("여러번에 여러곳")
+                        .description("여러 번에 걸쳐 여러 곳에 분산 투자")
+                        .build()
         };
     }
 
-    private OnboardDto.RiskLevelOption[] getRiskLevelOptions() {
-        return new OnboardDto.RiskLevelOption[]{
-                new OnboardDto.RiskLevelOption(RiskLevel.CONSERVATIVE, "감내 못함", "원금 손실을 전혀 감내할 수 없음", "0%"),
-                new OnboardDto.RiskLevelOption(RiskLevel.MODERATE, "10% 이하", "소액의 손실까지 감내 가능", "~10%"),
-                new OnboardDto.RiskLevelOption(RiskLevel.BALANCED, "20~30%", "어느 정도 손실까지 감내 가능", "20~30%"),
-                new OnboardDto.RiskLevelOption(RiskLevel.AGGRESSIVE, "절반", "큰 손실도 감내할 수 있음", "~50%"),
-                new OnboardDto.RiskLevelOption(RiskLevel.SPECULATIVE, "전부", "높은 손실도 감내할 수 있음", "~100%")
+    private OnboardDto.LossToleranceOption[] getLossToleranceOptions() {
+        return new OnboardDto.LossToleranceOption[]{
+                OnboardDto.LossToleranceOption.builder()
+                        .value(LossTolerance.NONE)
+                        .label("손실 감내 못함")
+                        .description("원금 손실을 전혀 받아들일 수 없음")
+                        .build(),
+                OnboardDto.LossToleranceOption.builder()
+                        .value(LossTolerance.TEN_PERCENT)
+                        .label("10%")
+                        .description("10% 정도의 손실까지 감내 가능")
+                        .build(),
+                OnboardDto.LossToleranceOption.builder()
+                        .value(LossTolerance.TWENTY_TO_THIRTY_PERCENT)
+                        .label("20~30%")
+                        .description("20~30% 손실까지 감내 가능")
+                        .build(),
+                OnboardDto.LossToleranceOption.builder()
+                        .value(LossTolerance.HALF_OR_MORE)
+                        .label("절반이상")
+                        .description("투자금의 절반 이상 손실도 감내 가능")
+                        .build()
         };
     }
 
-    private OnboardDto.InvestmentTypeOption[] getInvestmentTypeOptions() {
-        return new OnboardDto.InvestmentTypeOption[]{
-                new OnboardDto.InvestmentTypeOption(PreferredInvestmentType.SAVINGS, "예금/적금", "안전한 원금보장 상품"),
-                new OnboardDto.InvestmentTypeOption(PreferredInvestmentType.ETF, "ETF", "상장지수펀드"),
-                new OnboardDto.InvestmentTypeOption(PreferredInvestmentType.BONDS, "채권", "국채, 회사채 등"),
-                new OnboardDto.InvestmentTypeOption(PreferredInvestmentType.FUNDS, "펀드", "뮤추얼펀드, 주식형펀드 등")
-        };
-    }
-
-    private OnboardDto.PeriodOption[] getPeriodOptions() {
-        return new OnboardDto.PeriodOption[]{
-                new OnboardDto.PeriodOption(InvestmentPeriod.SHORT_TERM, "단기", "1년 이하"),
-                new OnboardDto.PeriodOption(InvestmentPeriod.MEDIUM_TERM, "중기", "1-3년"),
-                new OnboardDto.PeriodOption(InvestmentPeriod.LONG_TERM, "장기", "3-5년"),
-                new OnboardDto.PeriodOption(InvestmentPeriod.VERY_LONG_TERM, "초장기", "5년 이상")
-        };
-    }
-
-    private OnboardDto.GoalOption[] getGoalOptions() {
-        return new OnboardDto.GoalOption[]{
-                new OnboardDto.GoalOption(InvestmentGoal.EMERGENCY_FUND, "비상자금 마련", "예기치 못한 상황에 대비"),
-                new OnboardDto.GoalOption(InvestmentGoal.WEALTH_BUILDING, "자산 증식", "장기적 자산 성장"),
-                new OnboardDto.GoalOption(InvestmentGoal.RETIREMENT, "노후 준비", "은퇴 후 생활 자금"),
-                new OnboardDto.GoalOption(InvestmentGoal.HOME_PURCHASE, "주택 마련", "내 집 마련 자금"),
-                new OnboardDto.GoalOption(InvestmentGoal.EDUCATION, "교육비 준비", "자녀 교육비 등"),
-                new OnboardDto.GoalOption(InvestmentGoal.TRAVEL, "여행 자금", "여행 및 여가 활동"),
-                new OnboardDto.GoalOption(InvestmentGoal.BUSINESS, "창업 자금", "사업 시작 자금"),
-                new OnboardDto.GoalOption(InvestmentGoal.OTHER, "기타", "기타 목적")
-        };
-    }
-
-    /**
-     * 투자 성향과 선택한 투자 유형 간의 일관성을 검증합니다
-     */
-    private void validateInvestmentConsistency(OnboardDto.SurveyRequest request) {
-        RiskLevel riskLevel = request.getRiskLevel();
-        var preferredTypes = request.getPreferredInvestmentTypes();
-        
-        // 보수적 성향인데 고위험 투자 유형만 선택한 경우 경고
-        if (riskLevel == RiskLevel.CONSERVATIVE) {
-            boolean hasOnlyHighRiskTypes = preferredTypes.stream()
-                    .allMatch(type -> type == PreferredInvestmentType.ETF || type == PreferredInvestmentType.FUNDS);
-            if (hasOnlyHighRiskTypes && !preferredTypes.contains(PreferredInvestmentType.SAVINGS) 
-                    && !preferredTypes.contains(PreferredInvestmentType.BONDS)) {
-                log.warn("Conservative risk level with only high-risk investment types for user");
-            }
-        }
-        
-        // 공격적 성향인데 안전 투자 유형만 선택한 경우 경고
-        if (riskLevel == RiskLevel.AGGRESSIVE || riskLevel == RiskLevel.SPECULATIVE) {
-            boolean hasOnlySafeTypes = preferredTypes.stream()
-                    .allMatch(type -> type == PreferredInvestmentType.SAVINGS || type == PreferredInvestmentType.BONDS);
-            if (hasOnlySafeTypes) {
-                log.warn("Aggressive risk level with only safe investment types for user");
-            }
+    private RiskLevel determineRiskLevel(LossTolerance lossTolerance, Integer minPeriod, Integer maxPeriod, Set<PreferredInvestmentType> investmentTypes) {
+        // 손실 감내도를 기반으로 우선 분류
+        switch (lossTolerance) {
+            case NONE:
+                return RiskLevel.STABLE;
+            case TEN_PERCENT:
+                return RiskLevel.STABILITY_SEEKING;
+            case TWENTY_TO_THIRTY_PERCENT:
+                return RiskLevel.RISK_NEUTRAL;
+            case HALF_OR_MORE:
+                // 기간과 투자 유형으로 세분화
+                boolean isLongTerm = maxPeriod != null && maxPeriod >= 60; // 5년 이상
+                boolean hasHighRiskTypes = investmentTypes.contains(PreferredInvestmentType.ETF) || 
+                                         investmentTypes.contains(PreferredInvestmentType.FUNDS);
+                
+                if (isLongTerm && hasHighRiskTypes) {
+                    return RiskLevel.AGGRESSIVE_INVESTMENT;
+                } else {
+                    return RiskLevel.ACTIVE_INVESTMENT;
+                }
+            default:
+                return RiskLevel.STABLE;
         }
     }
-    
-    /**
-     * 사용자의 현재 투자 선호도를 조회합니다
-     */
-    @Transactional(readOnly = true)
-    public Optional<InvestmentPreference> getUserInvestmentPreference(String userId) {
-        try {
-            Long userIdLong = Long.parseLong(userId);
-            return investmentPreferenceRepository.findByUserId(userIdLong);
-        } catch (NumberFormatException e) {
-            log.error("Invalid userId format: {}", userId);
-            return Optional.empty();
+
+    private String getRiskProfile(RiskLevel riskLevel) {
+        switch (riskLevel) {
+            case STABLE:
+                return "안정형";
+            case STABILITY_SEEKING:
+                return "안정추구형";
+            case RISK_NEUTRAL:
+                return "위험중립형";
+            case ACTIVE_INVESTMENT:
+                return "적극투자형";
+            case AGGRESSIVE_INVESTMENT:
+                return "공격투자형";
+            default:
+                return "안정형";
+        }
+    }
+
+    private String getInvestmentStrategy(RiskLevel riskLevel) {
+        switch (riskLevel) {
+            case STABLE:
+                return "원금보장 중심의 안정적 투자";
+            case STABILITY_SEEKING:
+                return "안정성을 우선하되 적절한 수익 추구";
+            case RISK_NEUTRAL:
+                return "위험과 수익의 균형잡힌 투자";
+            case ACTIVE_INVESTMENT:
+                return "적극적인 수익 추구를 위한 투자";
+            case AGGRESSIVE_INVESTMENT:
+                return "고위험 고수익을 추구하는 공격적 투자";
+            default:
+                return "원금보장 중심의 안정적 투자";
+        }
+    }
+
+    private String getExpectedReturn(RiskLevel riskLevel) {
+        switch (riskLevel) {
+            case STABLE:
+                return "연 2-3% 수익률";
+            case STABILITY_SEEKING:
+                return "연 3-4% 수익률";
+            case RISK_NEUTRAL:
+                return "연 4-5% 수익률";
+            case ACTIVE_INVESTMENT:
+                return "연 5-7% 수익률";
+            case AGGRESSIVE_INVESTMENT:
+                return "연 7% 이상 수익률";
+            default:
+                return "연 2-3% 수익률";
+        }
+    }
+
+    private String getRecommendation(RiskLevel riskLevel) {
+        switch (riskLevel) {
+            case STABLE:
+                return "정기예금, 적금 등 원금보장 상품을 권장합니다";
+            case STABILITY_SEEKING:
+                return "정기예금과 안전한 채권형 펀드를 조합한 투자를 권장합니다";
+            case RISK_NEUTRAL:
+                return "예적금과 균형형 펀드를 적절히 배분한 투자를 권장합니다";
+            case ACTIVE_INVESTMENT:
+                return "성장형 펀드와 주식형 펀드를 포함한 적극적 투자를 권장합니다";
+            case AGGRESSIVE_INVESTMENT:
+                return "고수익 투자상품과 주식 직접투자를 포함한 공격적 투자를 권장합니다";
+            default:
+                return "정기예금, 적금 등 원금보장 상품을 권장합니다";
         }
     }
 }
