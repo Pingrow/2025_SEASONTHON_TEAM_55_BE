@@ -68,7 +68,13 @@ finlife:
       connect: 5000
       read: 10000
 
+# ETF 설정
+krx:
+  api:
+    key: ${KRX_API_KEY}
+
 # 채권 API 설정
 bond:
   api:
     key: ${BOND_API_KEY:YOUR_BOND_API_KEY_HERE}
+
