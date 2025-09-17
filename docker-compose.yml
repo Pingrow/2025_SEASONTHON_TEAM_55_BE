@@ -1,27 +1,6 @@
 version: '3.8'
 
 services:
-  mysql:
-    image: mysql:8.0
-    container_name: fingrow-mysql
-    restart: "no"
-    environment:
-      MYSQL_DATABASE: fingrow
-      MYSQL_USER: fingrow
-      MYSQL_PASSWORD: fingrow123
-      MYSQL_ROOT_PASSWORD: root123
-    ports:
-      - "3306:3306"
-    volumes:
-      - mysql_data:/var/lib/mysql
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      timeout: 20s
-      retries: 10
-    networks:
-      - fingrow-network
-
   app:
     build: .
     container_name: fingrow-app
@@ -31,7 +10,7 @@ services:
     env_file:
       - .env
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/fingrow?serverTimezone=UTC&characterEncoding=UTF-8&useSSL=false&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_URL=${DB_URL}
       - SPRING_DATASOURCE_USERNAME=${DB_USERNAME}
       - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
       - JWT_SECRET=${JWT_SECRET}
@@ -41,16 +20,6 @@ services:
       - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_KAKAO_CLIENT_SECRET=${KAKAO_CLIENT_SECRET}
       - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_KAKAO_REDIRECT_URI=${KAKAO_REDIRECT_URI}
       - FINLIFE_API_KEY=${FINLIFE_API_KEY}
-      - KRX_API_KEY=${KRX_API_KEY}
-    depends_on:
-      mysql:
-        condition: service_healthy
-    networks:
-      - fingrow-network
-
-volumes:
-  mysql_data:
-
-networks:
-  fingrow-network:
-    driver: bridge
+      - BOND_API_KEY=${BOND_API_KEY}
+      - YOUTH_API_KEY=${YOUTH_API_KEY}
+      - JUSO_API_KEY=${JUSO_API_KEY}

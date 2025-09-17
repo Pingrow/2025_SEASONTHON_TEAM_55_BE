@@ -19,7 +19,7 @@ import java.util.List;
 
 
 @RestController
-@RequestMapping("/api/financial")
+@RequestMapping("/api/v1/financial")
 @CrossOrigin(origins = "*")
 @RequiredArgsConstructor
 @Slf4j
@@ -33,16 +33,43 @@ public class FinancialProductController {
 
     @PostMapping("/sync/all")
     @Operation(
-            summary = "전체 상품 데이터 동기화",
-            description = "예금과 적금 상품 데이터를 모두 동기화합니다."
+            summary = "전체 상품 데이터 동기화 (비동기)",
+            description = "예금과 적금 상품 데이터를 병렬로 동기화합니다. 배치 최적화로 빠른 처리가 가능합니다."
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "동기화 성공"),
+            @ApiResponse(responseCode = "200", description = "동기화 시작됨"),
             @ApiResponse(responseCode = "500", description = "서버 오류")
     })
     public ResponseEntity<CommonResponse<String>> syncAllProducts() {
         try {
-            log.info("전체 상품 데이터 동기화 요청");
+            log.info("전체 상품 데이터 동기화 요청 (비동기)");
+
+            // 비동기 동기화 시작
+            financialProductService.syncAllProductsAsync();
+
+            return ResponseEntity.ok(
+                    CommonResponse.success("전체 상품 데이터 동기화가 시작되었습니다. 백그라운드에서 처리중입니다.")
+            );
+        } catch (Exception e) {
+            log.error("전체 상품 데이터 동기화 실패", e);
+            return ResponseEntity.internalServerError().body(
+                    CommonResponse.error("전체 상품 데이터 동기화에 실패했습니다: " + e.getMessage())
+            );
+        }
+    }
+
+    @PostMapping("/sync/all/sync")
+    @Operation(
+            summary = "전체 상품 데이터 동기화 (동기)",
+            description = "예금과 적금 상품 데이터를 순차적으로 동기화합니다. 완료까지 대기합니다."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "동기화 완료"),
+            @ApiResponse(responseCode = "500", description = "서버 오류")
+    })
+    public ResponseEntity<CommonResponse<String>> syncAllProductsSync() {
+        try {
+            log.info("전체 상품 데이터 동기화 요청 (동기)");
             financialProductService.syncDepositProducts();
             financialProductService.syncSavingProducts();
             return ResponseEntity.ok(
