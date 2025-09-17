@@ -41,7 +41,7 @@ public class AuthController {
                             schema = @Schema(example = "{\"accessToken\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\", \"user\": {\"id\": 1, \"email\": \"user@example.com\", \"name\": \"홍길동\", \"profileImage\": \"profile_url\", \"provider\": \"KAKAO\", \"role\": \"USER\"}}"))),
             @ApiResponse(responseCode = "400", description = "잘못된 액세스 토큰 또는 로그인 실패")
     })
-    @PostMapping("/kakao")
+    @PostMapping(value = "/kakao", consumes = {"application/json", "application/x-www-form-urlencoded"})
     public ResponseEntity<?> kakaoLogin(
             @Parameter(description = "카카오 액세스 토큰", required = true,
                     schema = @Schema(example = "{\"accessToken\": \"kakao_access_token_from_flutter\"}"))
