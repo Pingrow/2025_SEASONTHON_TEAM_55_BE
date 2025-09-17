@@ -1,105 +1,48 @@
 package com.fingrow.domain.financial.bond.controller;
 
-import com.fingrow.domain.financial.bond.dto.BondSearchResponse;
-import com.fingrow.domain.financial.bond.dto.BondSummaryDto;
-import com.fingrow.domain.financial.bond.dto.BondTopResponse;
+import com.fingrow.domain.financial.bond.dto.BondResponse;
 import com.fingrow.domain.financial.bond.service.BondService;
+import com.fingrow.domain.financial.deposit.dto.CommonResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
-@RequestMapping("/api/v1/bonds")
+@RequestMapping("/api/v1/financial/bond")
+@CrossOrigin(origins = "*")
 @RequiredArgsConstructor
 @Slf4j
+@Tag(name = "채권 API", description = "금융채 상품 조회 API")
 public class BondController {
 
     private final BondService bondService;
 
-    @PostMapping("/sync")
-    public ResponseEntity<String> syncBondData(
-            @RequestParam(value = "bondType", defaultValue = "금융채") String bondType) {
+    @GetMapping
+    @Operation(
+            summary = "채권 정보 조회",
+            description = "금융채 상품의 금리 TOP5와 만기 TOP5 정보를 조회합니다."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "500", description = "서버 오류")
+    })
+    public ResponseEntity<CommonResponse<BondResponse>> getBondInfo() {
         try {
-            log.info("채권 데이터 동기화 요청: {}", bondType);
-            bondService.syncBondData(bondType);
-            return ResponseEntity.ok("채권 데이터 동기화가 완료되었습니다: " + bondType);
+            log.info("채권 정보 조회 요청");
+            BondResponse bondInfo = bondService.getBondInfo();
+            return ResponseEntity.ok(
+                    CommonResponse.success(bondInfo.getMessage(), bondInfo)
+            );
         } catch (Exception e) {
-            log.error("채권 데이터 동기화 실패", e);
-            return ResponseEntity.internalServerError()
-                    .body("채권 데이터 동기화 실패: " + e.getMessage());
+            log.error("채권 정보 조회 실패", e);
+            return ResponseEntity.internalServerError().body(
+                    CommonResponse.error("채권 정보 조회에 실패했습니다: " + e.getMessage())
+            );
         }
-    }
-
-    @GetMapping("/top")
-    public ResponseEntity<BondTopResponse> getTopBonds(
-            @RequestParam(value = "bondType", defaultValue = "금융채") String bondType,
-            @RequestParam(value = "count", defaultValue = "5") Integer count) {
-        try {
-            log.info("상위 채권 조회 요청: {} ({}개)", bondType, count);
-            BondTopResponse response = bondService.getTopBonds(bondType, count);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            log.error("상위 채권 조회 실패", e);
-            return ResponseEntity.internalServerError().build();
-        }
-    }
-
-    @GetMapping("/search")
-    public ResponseEntity<BondSearchResponse> searchBonds(
-            @RequestParam("keyword") String keyword) {
-        try {
-            log.info("채권 검색 요청: {}", keyword);
-            BondSearchResponse response = bondService.searchBonds(keyword);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            log.error("채권 검색 실패", e);
-            return ResponseEntity.internalServerError().build();
-        }
-    }
-
-    @GetMapping("/all")
-    public ResponseEntity<List<BondSummaryDto>> getAllBonds() {
-        try {
-            log.info("전체 채권 목록 조회 요청");
-            List<BondSummaryDto> bonds = bondService.getAllBonds();
-            return ResponseEntity.ok(bonds);
-        } catch (Exception e) {
-            log.error("전체 채권 목록 조회 실패", e);
-            return ResponseEntity.internalServerError().build();
-        }
-    }
-
-    @GetMapping("/type/{bondType}")
-    public ResponseEntity<List<BondSummaryDto>> getBondsByType(
-            @PathVariable String bondType) {
-        try {
-            log.info("채권 종류별 조회 요청: {}", bondType);
-            List<BondSummaryDto> bonds = bondService.getFutureBondsByType(bondType);
-            return ResponseEntity.ok(bonds);
-        } catch (Exception e) {
-            log.error("채권 종류별 조회 실패", e);
-            return ResponseEntity.internalServerError().build();
-        }
-    }
-
-    @GetMapping("/min-rate/{minRate}")
-    public ResponseEntity<List<BondSummaryDto>> getBondsByMinRate(
-            @PathVariable Double minRate) {
-        try {
-            log.info("최소 금리 이상 채권 조회 요청: {}%", minRate);
-            List<BondSummaryDto> bonds = bondService.getBondsByMinRate(minRate);
-            return ResponseEntity.ok(bonds);
-        } catch (Exception e) {
-            log.error("최소 금리 이상 채권 조회 실패", e);
-            return ResponseEntity.internalServerError().build();
-        }
-    }
-
-    @GetMapping("/status")
-    public ResponseEntity<String> checkApiStatus() {
-        return ResponseEntity.ok("Bond API is running");
     }
 }

@@ -1,217 +1,158 @@
 package com.fingrow.domain.financial.bond.service;
 
-import com.fingrow.domain.financial.bond.dto.*;
-import com.fingrow.domain.financial.bond.entity.Bond;
-import com.fingrow.domain.financial.bond.repository.BondRepository;
+import com.fingrow.domain.financial.bond.dto.BondDto;
+import com.fingrow.domain.financial.bond.dto.BondResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
-@Transactional
-@Slf4j
 @RequiredArgsConstructor
+@Slf4j
 public class BondService {
 
-    private final BondRepository bondRepository;
     private final RestTemplate restTemplate;
 
-    @Value("${KRX_API_KEY}")
-    private String apiKey;
+    @Value("${bond.api.key}")
+    private String bondApiKey;
 
-    private static final String BASE_URL = "https://apis.data.go.kr/1160100/service/GetBondTradInfoService/getIssuIssuItemStat";
+    private static final String BOND_API_URL = "https://apis.data.go.kr/1160100/service/GetBondTradInfoService/getIssuIssuItemStat";
 
-    public void syncBondData() {
-        syncBondData("금융채");
-    }
-
-    public void syncBondData(String bondType) {
+    public BondResponse getBondInfo() {
         try {
-            log.info("채권 데이터 동기화 시작: {}", bondType);
-
-            String encodedApiKey = URLEncoder.encode(apiKey, StandardCharsets.UTF_8);
             String today = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-            
-            String url = String.format("%s?serviceKey=%s&pageNo=1&numOfRows=1000&resultType=json&scrsItmsKcdNm=%s&basDt=%s",
-                    BASE_URL, encodedApiKey, URLEncoder.encode(bondType, StandardCharsets.UTF_8), today);
+
+            String url = UriComponentsBuilder.fromHttpUrl(BOND_API_URL)
+                    .queryParam("serviceKey", bondApiKey)
+                    .queryParam("pageNo", 1)
+                    .queryParam("numOfRows", 1000)
+                    .queryParam("resultType", "json")
+                    .queryParam("scrsItmsKcdNm", "금융채")
+                    .queryParam("basDt", today)
+                    .build()
+                    .toUriString();
 
             log.info("채권 API 호출: {}", url);
 
-            BondApiResponse response = restTemplate.getForObject(url, BondApiResponse.class);
+            Map<String, Object> response = restTemplate.getForObject(url, Map.class);
 
-            if (response == null || response.getResponse() == null || response.getResponse().getBody() == null) {
+            if (response == null) {
                 throw new RuntimeException("API 응답이 null입니다.");
             }
 
-            if (!"00".equals(response.getResponse().getHeader().getResultCode())) {
-                throw new RuntimeException("API 호출 실패: " + response.getResponse().getHeader().getResultMsg());
-            }
+            List<Map<String, Object>> items = extractItems(response);
+            List<BondDto> processedBonds = processApiResponse(items);
 
-            List<BondDto> bondDtos = response.getResponse().getBody().getItems().getItem();
-            if (bondDtos == null || bondDtos.isEmpty()) {
-                log.warn("API 응답에서 채권 데이터를 찾을 수 없습니다.");
-                return;
-            }
+            List<BondDto> topByInterest = processedBonds.stream()
+                    .sorted((a, b) -> Double.compare(
+                            b.getBondSrfcInrt() != null ? b.getBondSrfcInrt() : 0.0,
+                            a.getBondSrfcInrt() != null ? a.getBondSrfcInrt() : 0.0
+                    ))
+                    .limit(5)
+                    .collect(Collectors.toList());
 
-            // 해당 종류의 기존 데이터 삭제
-            List<Bond> existingBonds = bondRepository.findByScrsItmsKcdNm(bondType);
-            bondRepository.deleteAll(existingBonds);
-            bondRepository.flush();
-            log.info("기존 {} 데이터 {} 건 삭제 완료", bondType, existingBonds.size());
+            List<BondDto> topByMaturity = processedBonds.stream()
+                    .filter(bond -> bond.getBondExprDt() != null)
+                    .sorted(Comparator.comparing(BondDto::getBondExprDt))
+                    .limit(5)
+                    .collect(Collectors.toList());
 
-            // 새 데이터 저장
-            List<Bond> bonds = new ArrayList<>();
-            for (BondDto dto : bondDtos) {
-                try {
-                    Bond bond = convertDtoToEntity(dto);
-                    if (bond != null) {
-                        bonds.add(bond);
-                    }
-                } catch (Exception e) {
-                    log.warn("채권 데이터 변환 실패: {} - {}", dto.getIsinCd(), e.getMessage());
-                }
-            }
+            BondResponse.BondData bondData = BondResponse.BondData.builder()
+                    .sortByInterest(topByInterest)
+                    .sortByMaturity(topByMaturity)
+                    .build();
 
-            bondRepository.saveAll(bonds);
-            log.info("{} 채권 데이터 동기화 완료: {} 건", bondType, bonds.size());
-
-        } catch (Exception e) {
-            log.error("채권 데이터 동기화 실패: {}", bondType, e);
-            throw new RuntimeException("채권 데이터 동기화 실패: " + e.getMessage(), e);
-        }
-    }
-
-    private Bond convertDtoToEntity(BondDto dto) {
-        try {
-            Double interestRate = null;
-            if (dto.getBondSrfcInrt() != null && !dto.getBondSrfcInrt().trim().isEmpty()) {
-                try {
-                    interestRate = Double.parseDouble(dto.getBondSrfcInrt());
-                } catch (NumberFormatException e) {
-                    log.warn("금리 파싱 실패: {} - {}", dto.getIsinCd(), dto.getBondSrfcInrt());
-                }
-            }
-
-            LocalDate maturityDate = null;
-            if (dto.getBondExprDt() != null && !dto.getBondExprDt().trim().isEmpty()) {
-                try {
-                    maturityDate = LocalDate.parse(dto.getBondExprDt(), DateTimeFormatter.ofPattern("yyyyMMdd"));
-                } catch (DateTimeParseException e) {
-                    log.warn("만기일 파싱 실패: {} - {}", dto.getIsinCd(), dto.getBondExprDt());
-                }
-            }
-
-            return Bond.builder()
-                    .isinCd(dto.getIsinCd())
-                    .isinCdNm(dto.getIsinCdNm())
-                    .bondIsurNm(dto.getBondIsurNm())
-                    .bondSrfcInrt(interestRate)
-                    .bondExprDt(maturityDate)
-                    .scrsItmsKcdNm(dto.getScrsItmsKcdNm())
-                    .basDt(dto.getBasDt())
+            return BondResponse.builder()
+                    .success(true)
+                    .message(String.format("%d개의 금융채 상품을 조회했습니다.", topByInterest.size() + topByMaturity.size()))
+                    .data(bondData)
                     .build();
 
         } catch (Exception e) {
-            log.warn("DTO to Entity 변환 실패: {}", dto.getIsinCd(), e);
+            log.error("채권 정보 조회 실패", e);
+            throw new RuntimeException("채권 정보 조회 실패: " + e.getMessage(), e);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> extractItems(Map<String, Object> response) {
+        try {
+            Map<String, Object> responseBody = (Map<String, Object>) response.get("response");
+            Map<String, Object> body = (Map<String, Object>) responseBody.get("body");
+            Map<String, Object> items = (Map<String, Object>) body.get("items");
+            Object item = items.get("item");
+
+            if (item instanceof List) {
+                return (List<Map<String, Object>>) item;
+            } else if (item instanceof Map) {
+                return Collections.singletonList((Map<String, Object>) item);
+            } else {
+                return Collections.emptyList();
+            }
+        } catch (Exception e) {
+            log.error("API 응답 파싱 실패", e);
+            return Collections.emptyList();
+        }
+    }
+
+    private List<BondDto> processApiResponse(List<Map<String, Object>> items) {
+        String today = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+
+        return items.stream()
+                .map(this::mapToBondDto)
+                .filter(bond -> bond.getBondExprDt() != null && bond.getBondExprDt().compareTo(today) >= 0)
+                .collect(Collectors.toList());
+    }
+
+    private BondDto mapToBondDto(Map<String, Object> item) {
+        try {
+            String bondExprDt = convertDateFormat((String) item.get("bondExprDt"));
+            Double bondSrfcInrt = parseDouble(item.get("bondSrfcInrt"));
+
+            return BondDto.builder()
+                    .bondIsurNm((String) item.get("bondIsurNm"))
+                    .isinCdNm((String) item.get("isinCdNm"))
+                    .bondSrfcInrt(bondSrfcInrt)
+                    .bondExprDt(bondExprDt)
+                    .build();
+        } catch (Exception e) {
+            log.warn("채권 데이터 변환 실패: {}", item, e);
+            return BondDto.builder().build();
+        }
+    }
+
+    private String convertDateFormat(String dateStr) {
+        if (dateStr == null || dateStr.length() != 8) {
+            return null;
+        }
+        try {
+            return dateStr.substring(0, 4) + "-" + dateStr.substring(4, 6) + "-" + dateStr.substring(6, 8);
+        } catch (Exception e) {
+            log.warn("날짜 형식 변환 실패: {}", dateStr, e);
             return null;
         }
     }
 
-    @Transactional(readOnly = true)
-    public BondTopResponse getTopBonds() {
-        return getTopBonds("금융채", 5);
-    }
-
-    @Transactional(readOnly = true)
-    public BondTopResponse getTopBonds(String bondType, Integer topCount) {
-        LocalDate today = LocalDate.now();
-        
-        List<Bond> topByRate = bondRepository.findFutureBondsByTypeOrderByInterestRateDesc(today, bondType)
-                .stream()
-                .limit(topCount)
-                .collect(Collectors.toList());
-
-        List<Bond> topByMaturity = bondRepository.findBondsByMaturityPeriodOrderByInterestRateDesc(today, today.plusYears(10))
-                .stream()
-                .filter(b -> bondType.equals(b.getScrsItmsKcdNm()))
-                .sorted(Comparator.comparing(Bond::getBondExprDt))
-                .limit(topCount)
-                .collect(Collectors.toList());
-
-        return BondTopResponse.builder()
-                .topByInterestRate(topByRate.stream().map(this::convertToSummaryDto).collect(Collectors.toList()))
-                .topByMaturity(topByMaturity.stream().map(this::convertToSummaryDto).collect(Collectors.toList()))
-                .bondType(bondType)
-                .topCount(topCount)
-                .syncDate(LocalDate.now().toString())
-                .build();
-    }
-
-    @Transactional(readOnly = true)
-    public BondSearchResponse searchBonds(String keyword) {
-        List<Bond> bonds = new ArrayList<>();
-        
-        bonds.addAll(bondRepository.findByIsinCdNmContainingIgnoreCase(keyword));
-        bonds.addAll(bondRepository.findByBondIsurNmContainingIgnoreCase(keyword));
-
-        // 중복 제거
-        List<Bond> uniqueBonds = bonds.stream()
-                .distinct()
-                .collect(Collectors.toList());
-
-        return BondSearchResponse.builder()
-                .keyword(keyword)
-                .bonds(uniqueBonds.stream().map(this::convertToSummaryDto).collect(Collectors.toList()))
-                .totalCount(uniqueBonds.size())
-                .sortBy("금리순")
-                .build();
-    }
-
-    @Transactional(readOnly = true)
-    public List<BondSummaryDto> getAllBonds() {
-        return bondRepository.findAll().stream()
-                .map(this::convertToSummaryDto)
-                .collect(Collectors.toList());
-    }
-
-    @Transactional(readOnly = true)
-    public List<BondSummaryDto> getFutureBondsByType(String bondType) {
-        return bondRepository.findFutureBondsByTypeOrderByInterestRateDesc(LocalDate.now(), bondType)
-                .stream()
-                .map(this::convertToSummaryDto)
-                .collect(Collectors.toList());
-    }
-
-    @Transactional(readOnly = true)
-    public List<BondSummaryDto> getBondsByMinRate(Double minRate) {
-        return bondRepository.findFutureBondsByMinRateOrderByInterestRateDesc(LocalDate.now(), minRate)
-                .stream()
-                .map(this::convertToSummaryDto)
-                .collect(Collectors.toList());
-    }
-
-    private BondSummaryDto convertToSummaryDto(Bond bond) {
-        return BondSummaryDto.builder()
-                .id(bond.getId())
-                .isinCd(bond.getIsinCd())
-                .bondName(bond.getIsinCdNm())
-                .issuerName(bond.getBondIsurNm())
-                .interestRate(bond.getBondSrfcInrt())
-                .maturityDate(bond.getBondExprDt())
-                .bondType(bond.getScrsItmsKcdNm())
-                .daysToMaturity(bond.getDaysToMaturity())
-                .isMatured(bond.isMatured())
-                .build();
+    private Double parseDouble(Object value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            if (value instanceof Number) {
+                return ((Number) value).doubleValue();
+            }
+            return Double.parseDouble(value.toString());
+        } catch (NumberFormatException e) {
+            log.warn("숫자 변환 실패: {}", value, e);
+            return null;
+        }
     }
 }
