@@ -1,7 +1,6 @@
 package com.fingrow.domain.onboard.entity;
 
 import com.fingrow.domain.user.entity.User;
-import com.fingrow.global.enums.InvestmentGoal;
 import com.fingrow.global.enums.InvestmentMethod;
 import com.fingrow.global.enums.LossTolerance;
 import com.fingrow.global.enums.PreferredInvestmentType;
@@ -36,9 +35,8 @@ public class InvestmentPreference {
     @Column(name = "risk_level", nullable = false)
     private RiskLevel riskLevel;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "investment_goal", nullable = false)
-    private InvestmentGoal investmentGoal;
+    @Column(name = "investment_goal", nullable = false, length = 100)
+    private String investmentGoal;
 
     @Column(name = "target_amount", precision = 15, scale = 2)
     private BigDecimal targetAmount;
@@ -78,7 +76,7 @@ public class InvestmentPreference {
     private LocalDateTime updatedAt;
 
     @Builder
-    public InvestmentPreference(User user, RiskLevel riskLevel, InvestmentGoal investmentGoal, 
+    public InvestmentPreference(User user, RiskLevel riskLevel, String investmentGoal,
                                BigDecimal targetAmount, Integer minInvestmentPeriod, Integer maxInvestmentPeriod,
                                Set<PreferredInvestmentType> preferredInvestmentTypes,
                                InvestmentMethod investmentMethod, LossTolerance lossTolerance, String address) {
@@ -94,7 +92,7 @@ public class InvestmentPreference {
         this.address = address;
     }
 
-    public void updatePreferences(RiskLevel riskLevel, InvestmentGoal investmentGoal,
+    public void updatePreferences(RiskLevel riskLevel, String investmentGoal,
                                  BigDecimal targetAmount, Integer minInvestmentPeriod, Integer maxInvestmentPeriod,
                                  Set<PreferredInvestmentType> preferredInvestmentTypes,
                                  InvestmentMethod investmentMethod, LossTolerance lossTolerance, String address) {

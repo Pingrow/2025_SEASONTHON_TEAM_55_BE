@@ -44,7 +44,10 @@ public class OpenApiConfig {
                                 .description("Development server"),
                         new Server()
                                 .url("https://api.fingrow.com")
-                                .description("Production server")))
+                                .description("Production server"),
+                        new Server()
+                                .url("http://16.176.134.222:8080")
+                                .description("EC2 server")))
                 .components(new Components()
                         .addSecuritySchemes("bearerAuth", new SecurityScheme()
                                 .type(SecurityScheme.Type.HTTP)
