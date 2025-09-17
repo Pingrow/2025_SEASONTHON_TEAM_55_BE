@@ -123,32 +123,63 @@ public class FinancialProductController {
 
     // ========================== 상품 검색 API ==========================
 
-    @GetMapping("/search")
+    @GetMapping("/deposits/search")
     @Operation(
-            summary = "상품 검색",
-            description = "상품명이나 은행명으로 예금/적금 상품을 검색합니다."
+            summary = "예금 상품 검색",
+            description = "은행명이나 상품명으로 예금 상품만 검색합니다."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "검색 성공"),
             @ApiResponse(responseCode = "400", description = "잘못된 요청"),
             @ApiResponse(responseCode = "500", description = "서버 오류")
     })
-    public ResponseEntity<CommonResponse<SearchResponse>> searchProducts(
-            @Parameter(description = "검색 키워드", example = "우리은행", required = true)
+    public ResponseEntity<CommonResponse<List<ProductSummaryDto>>> searchDepositProducts(
+            @Parameter(description = "검색 키워드 (은행명 또는 상품명)", example = "우리은행", required = true)
             @RequestParam @NotBlank(message = "검색 키워드는 필수입니다.") String keyword) {
         try {
-            log.info("상품 검색 요청: {}", keyword);
-            SearchResponse searchResult = financialProductService.searchProducts(keyword);
+            log.info("예금 상품 검색 요청: {}", keyword);
+            List<ProductSummaryDto> searchResult = financialProductService.searchDepositProducts(keyword);
             return ResponseEntity.ok(
                     CommonResponse.success(
-                            "'" + keyword + "'로 " + searchResult.getTotalCount() + "개 상품을 찾았습니다.",
+                            "'" + keyword + "'로 " + searchResult.size() + "개 예금 상품을 찾았습니다.",
                             searchResult
                     )
             );
         } catch (Exception e) {
-            log.error("상품 검색 실패", e);
+            log.error("예금 상품 검색 실패", e);
             return ResponseEntity.internalServerError().body(
-                    CommonResponse.error("상품 검색에 실패했습니다: " + e.getMessage())
+                    CommonResponse.error("예금 상품 검색에 실패했습니다: " + e.getMessage())
+            );
+        }
+    }
+
+    // ========================== 적금 검색 API ==========================
+    @GetMapping("/savings/search")
+    @Operation(
+            summary = "적금 상품 검색",
+            description = "은행명이나 상품명으로 적금 상품만 검색합니다."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "검색 성공"),
+            @ApiResponse(responseCode = "400", description = "잘못된 요청"),
+            @ApiResponse(responseCode = "500", description = "서버 오류")
+    })
+    public ResponseEntity<CommonResponse<List<ProductSummaryDto>>> searchSavingProducts(
+            @Parameter(description = "검색 키워드 (은행명 또는 상품명)", example = "우리은행", required = true)
+            @RequestParam @NotBlank(message = "검색 키워드는 필수입니다.") String keyword) {
+        try {
+            log.info("적금 상품 검색 요청: {}", keyword);
+            List<ProductSummaryDto> searchResult = financialProductService.searchSavingProducts(keyword);
+            return ResponseEntity.ok(
+                    CommonResponse.success(
+                            "'" + keyword + "'로 " + searchResult.size() + "개 적금 상품을 찾았습니다.",
+                            searchResult
+                    )
+            );
+        } catch (Exception e) {
+            log.error("적금 상품 검색 실패", e);
+            return ResponseEntity.internalServerError().body(
+                    CommonResponse.error("적금 상품 검색에 실패했습니다: " + e.getMessage())
             );
         }
     }
