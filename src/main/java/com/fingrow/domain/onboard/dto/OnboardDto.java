@@ -56,8 +56,7 @@ public class OnboardDto {
         private InvestmentMethod investmentMethod;           // 한번에 한곳/여러곳, 여러번에 한곳/여러곳
         private LossTolerance lossTolerance;                // 손실 감내도 (못함, 10%, 20-30%, 절반이상)
         private Set<PreferredInvestmentType> preferredInvestmentTypes;  // 예적금, ETF, 국채, 펀드 (중복선택)
-        private Integer minInvestmentPeriod;                // 최소 투자 기간 (개월)
-        private Integer maxInvestmentPeriod;                // 최대 투자 기간 (개월)
+        private Integer investmentPeriod;                   // 투자 기간 (개월)
         private String investmentGoal;              // 목표
         private BigDecimal targetAmount;                    // 필요금액
         private String address;                             // 사용자 주소
