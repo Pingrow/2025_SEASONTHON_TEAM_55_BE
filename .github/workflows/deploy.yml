@@ -1,0 +1,71 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Cache Gradle dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
+
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+
+    - name: Build application
+      run: ./gradlew build -x test
+      env:
+        JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        FINLIFE_API_KEY: ${{ secrets.FINLIFE_API_KEY }}
+        BOND_API_KEY: ${{ secrets.BOND_API_KEY }}
+        KRX_API_KEY: ${{ secrets.KRX_API_KEY }}
+
+    - name: Make zip file
+      run: zip -r fingrow-app.zip . -x "*.git*" "*/test/*" "*.gradle*"
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ap-southeast-2
+
+    - name: Upload to S3
+      run: aws s3 cp fingrow-app.zip s3://${{ secrets.S3_BUCKET_NAME }}/fingrow-app.zip
+
+    - name: Deploy to EC2 via CodeDeploy
+      run: |
+        aws deploy create-deployment \
+          --application-name ${{ secrets.CODEDEPLOY_APPLICATION_NAME }} \
+          --deployment-group-name ${{ secrets.CODEDEPLOY_DEPLOYMENT_GROUP }} \
+          --deployment-config-name CodeDeployDefault.AllAtOneBlueGreen \
+          --s3-location bucket=${{ secrets.S3_BUCKET_NAME }},key=fingrow-app.zip,bundleType=zip
+
+    - name: Notify deployment status
+      if: always()
+      run: |
+        if [ ${{ job.status }} == 'success' ]; then
+          echo "✅ Deployment successful!"
+        else
+          echo "❌ Deployment failed!"
+        fi
