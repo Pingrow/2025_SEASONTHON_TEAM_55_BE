@@ -62,3 +62,8 @@ finlife:
     timeout:
       connect: 5000
       read: 10000
+
+# ETF 설정
+krx:
+  api:
+    key: ${KRX_API_KEY}
