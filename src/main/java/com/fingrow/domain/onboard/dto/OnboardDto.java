@@ -1,8 +1,6 @@
 package com.fingrow.domain.onboard.dto;
 
-import com.fingrow.global.enums.InvestmentGoal;
 import com.fingrow.global.enums.InvestmentMethod;
-import com.fingrow.global.enums.InvestmentPeriod;
 import com.fingrow.global.enums.PreferredInvestmentType;
 import com.fingrow.global.enums.RiskLevel;
 import com.fingrow.global.enums.LossTolerance;
@@ -24,9 +22,9 @@ public class OnboardDto {
     @AllArgsConstructor
     public static class OnboardRequest {
         private RiskLevel riskLevel;
-        private InvestmentGoal investmentGoal;
+        private String investmentGoal;
         private BigDecimal targetAmount;
-        private InvestmentPeriod investmentPeriod;
+        private Integer investmentPeriod;
         private Set<PreferredInvestmentType> preferredInvestmentTypes;
         private BigDecimal monthlyInvestmentAmount;
         private String currentInvestmentExperience;
@@ -41,9 +39,9 @@ public class OnboardDto {
         private Long id;
         private Long userId;
         private RiskLevel riskLevel;
-        private InvestmentGoal investmentGoal;
+        private String investmentGoal;
         private BigDecimal targetAmount;
-        private InvestmentPeriod investmentPeriod;
+        private Integer investmentPeriod;
         private Set<PreferredInvestmentType> preferredInvestmentTypes;
         private BigDecimal monthlyInvestmentAmount;
         private String currentInvestmentExperience;
@@ -60,7 +58,7 @@ public class OnboardDto {
         private Set<PreferredInvestmentType> preferredInvestmentTypes;  // 예적금, ETF, 국채, 펀드 (중복선택)
         private Integer minInvestmentPeriod;                // 최소 투자 기간 (개월)
         private Integer maxInvestmentPeriod;                // 최대 투자 기간 (개월)
-        private InvestmentGoal investmentGoal;              // 목표
+        private String investmentGoal;              // 목표
         private BigDecimal targetAmount;                    // 필요금액
         private String address;                             // 사용자 주소
     }
@@ -125,7 +123,7 @@ public class OnboardDto {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class GoalOption {
-        private InvestmentGoal value;
+        private String value;
         private String label;
         private String description;
     }
@@ -135,7 +133,7 @@ public class OnboardDto {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class PeriodOption {
-        private InvestmentPeriod value;
+        private Integer value;
         private String label;
         private String description;
     }

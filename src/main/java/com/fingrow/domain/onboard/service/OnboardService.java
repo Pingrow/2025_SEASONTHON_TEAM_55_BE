@@ -205,14 +205,54 @@ public class OnboardService {
     private OnboardDto.GoalOption[] getGoalOptions() {
         return new OnboardDto.GoalOption[]{
                 OnboardDto.GoalOption.builder()
-                        .value(InvestmentGoal.RETIREMENT)
+                        .value("은퇴 준비")
                         .label("은퇴 준비")
                         .description("노후 자금 마련")
                         .build(),
                 OnboardDto.GoalOption.builder()
-                        .value(InvestmentGoal.HOME_PURCHASE)
+                        .value("주택 마련")
                         .label("주택 마련")
                         .description("내 집 마련 자금")
+                        .build(),
+                OnboardDto.GoalOption.builder()
+                        .value("교육비 준비")
+                        .label("교육비 준비")
+                        .description("자녀 교육비 마련")
+                        .build(),
+                OnboardDto.GoalOption.builder()
+                        .value("비상 자금")
+                        .label("비상 자금")
+                        .description("응급상황 대비 자금")
+                        .build(),
+                OnboardDto.GoalOption.builder()
+                        .value("자산 증대")
+                        .label("자산 증대")
+                        .description("보유 자산 확대")
+                        .build(),
+                OnboardDto.GoalOption.builder()
+                        .value("여행 자금")
+                        .label("여행 자금")
+                        .description("여행 및 휴가 자금")
+                        .build(),
+                OnboardDto.GoalOption.builder()
+                        .value("결혼 자금")
+                        .label("결혼 자금")
+                        .description("결혼 준비 자금")
+                        .build(),
+                OnboardDto.GoalOption.builder()
+                        .value("자동차 구매")
+                        .label("자동차 구매")
+                        .description("차량 구매 자금")
+                        .build(),
+                OnboardDto.GoalOption.builder()
+                        .value("창업")
+                        .label("창업")
+                        .description("사업 시작 자금")
+                        .build(),
+                OnboardDto.GoalOption.builder()
+                        .value("기타")
+                        .label("기타")
+                        .description("기타 목적")
                         .build()
         };
     }
