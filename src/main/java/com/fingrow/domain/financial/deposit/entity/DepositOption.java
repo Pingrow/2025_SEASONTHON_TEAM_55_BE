@@ -51,8 +51,4 @@ public class DepositOption {
         return intrRate != null ? intrRate : 0.0;
     }
 
-    // 연이율 계산
-    public Double getAnnualRate() {
-        return getBestRate();
-    }
 }

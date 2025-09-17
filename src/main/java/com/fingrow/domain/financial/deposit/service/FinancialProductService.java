@@ -67,7 +67,7 @@ public class FinancialProductService {
     }
 
     /**
-     * 예금 상품 데이터 동기화 (기존 메서드)
+     * 예금 상품 데이터 동기화
      */
     public void syncDepositProducts() {
         try {
@@ -142,7 +142,7 @@ public class FinancialProductService {
     }
 
     /**
-     * 예금 상품 비동기 동기화 (배치 최적화)
+     * 예금 상품 비동기 동기화
      */
     @Async("syncTaskExecutor")
     @Transactional
@@ -222,7 +222,7 @@ public class FinancialProductService {
     }
 
     /**
-     * 적금 상품 비동기 동기화 (배치 최적화)
+     * 적금 상품 비동기 동기화
      */
     @Async("syncTaskExecutor")
     @Transactional
@@ -304,7 +304,7 @@ public class FinancialProductService {
     }
 
     /**
-     * 적금 상품 데이터 동기화 (기존 메서드)
+     * 적금 상품 데이터 동기화
      */
     public void syncSavingProducts() {
         try {
@@ -620,46 +620,56 @@ public class FinancialProductService {
     // =========================== 조회 서비스 ===========================
 
     /**
-     * 예금 상품 목록 조회
+     * 예금 상품 검색 (예금 탭 전용)
      */
     @Transactional(readOnly = true)
-    public List<DepositProduct> getAllDepositProducts() {
-        return depositProductRepository.findAll();
+    public List<ProductSummaryDto> searchDepositProducts(String keyword) {
+        log.info("예금 상품 검색: {}", keyword);
+
+        Set<DepositProduct> uniqueProducts = new HashSet<>();
+
+        // 은행명으로 검색
+        uniqueProducts.addAll(depositProductRepository.findByKorCoNmContaining(keyword));
+
+        // 상품명으로 검색
+        uniqueProducts.addAll(depositProductRepository.findByFinPrdtNmContaining(keyword));
+
+        List<ProductSummaryDto> results = uniqueProducts.stream()
+                .map(this::convertDepositToSummary)
+                .sorted(Comparator.comparing(ProductSummaryDto::getBestRate).reversed()) // 금리 높은순 정렬
+                .collect(Collectors.toList());
+
+        log.info("예금 상품 검색 결과: {}개", results.size());
+        return results;
     }
 
     /**
-     * 적금 상품 목록 조회
+     * 적금 상품 검색 (적금 탭 전용)
      */
     @Transactional(readOnly = true)
-    public List<SavingProduct> getAllSavingProducts() {
-        return savingProductRepository.findAll();
+    public List<ProductSummaryDto> searchSavingProducts(String keyword) {
+        log.info("적금 상품 검색: {}", keyword);
+
+        Set<SavingProduct> uniqueProducts = new HashSet<>();
+
+        // 은행명으로 검색
+        uniqueProducts.addAll(savingProductRepository.findByKorCoNmContaining(keyword));
+
+        // 상품명으로 검색
+        uniqueProducts.addAll(savingProductRepository.findByFinPrdtNmContaining(keyword));
+
+        List<ProductSummaryDto> results = uniqueProducts.stream()
+                .map(this::convertSavingToSummary)
+                .sorted(Comparator.comparing(ProductSummaryDto::getBestRate).reversed()) // 금리 높은순 정렬
+                .collect(Collectors.toList());
+
+        log.info("적금 상품 검색 결과: {}개", results.size());
+        return results;
     }
 
     /**
      * 상품 검색
      */
-    @Transactional(readOnly = true)
-    public SearchResponse searchProducts(String keyword) {
-        List<DepositProduct> deposits = depositProductRepository.findByFinPrdtNmContaining(keyword);
-        deposits.addAll(depositProductRepository.findByKorCoNmContaining(keyword));
-
-        List<SavingProduct> savings = savingProductRepository.findByFinPrdtNmContaining(keyword);
-        savings.addAll(savingProductRepository.findByKorCoNmContaining(keyword));
-
-        List<ProductSummaryDto> allProducts = new ArrayList<>();
-
-        // 예금 변환
-        deposits.stream().distinct().forEach(d -> allProducts.add(convertDepositToSummary(d)));
-
-        // 적금 변환
-        savings.stream().distinct().forEach(s -> allProducts.add(convertSavingToSummary(s)));
-
-        return SearchResponse.builder()
-                .keyword(keyword)
-                .products(allProducts)
-                .totalCount(allProducts.size())
-                .build();
-    }
 
     // 변환 메서드들 추가
     private ProductSummaryDto convertDepositToSummary(DepositProduct deposit) {
@@ -690,11 +700,6 @@ public class FinancialProductService {
                 .bestRate(bestOption != null ? bestOption.getBestRate() : 0.0)
                 .bestTerm(bestOption != null ? bestOption.getSaveTrm() : null)
                 .build();
-    }
-
-    private String truncateText(String text, int maxLength) {
-        if (text == null || text.length() <= maxLength) return text;
-        return text.substring(0, maxLength) + "...";
     }
 
     // 전체 조회용 메서드들도 추가

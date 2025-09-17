@@ -57,20 +57,6 @@ public class SavingOption {
         return intrRate != null ? intrRate : 0.0;
     }
 
-    // 연이율 계산
-    public Double getAnnualRate() {
-        return getBestRate();
-    }
-
-    // 적립 타입 확인 메서드
-    public boolean isFixedAmount() {
-        return "S".equals(rsrvType); // 정액적립식
-    }
-
-    public boolean isFreeAmount() {
-        return "F".equals(rsrvType); // 자유적립식
-    }
-
     // 적금 만기 예상 수익 계산 (복리 계산)
     public Double calculateExpectedReturn(Double monthlyAmount, Integer months) {
         if (getBestRate() == null || getBestRate() <= 0) {
