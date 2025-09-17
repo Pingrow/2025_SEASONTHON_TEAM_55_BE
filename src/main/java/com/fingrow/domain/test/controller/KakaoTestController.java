@@ -38,6 +38,7 @@ public class KakaoTestController {
         ));
     }
 
+
     @Operation(summary = "카카오 콜백 처리", description = "카카오 인증 코드를 받아 액세스 토큰으로 교환합니다.")
     @PostMapping("/kakao/callback")
     public ResponseEntity<Map<String, Object>> handleKakaoCallback(@RequestBody Map<String, String> request) {

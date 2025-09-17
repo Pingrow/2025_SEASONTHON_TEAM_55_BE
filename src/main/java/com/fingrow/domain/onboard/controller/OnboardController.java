@@ -130,8 +130,6 @@ public class OnboardController {
             response.put("investmentMethod", pref.getInvestmentMethod());
             response.put("lossTolerance", pref.getLossTolerance());
             response.put("address", pref.getAddress());
-            response.put("createdAt", pref.getCreatedAt());
-            response.put("updatedAt", pref.getUpdatedAt());
 
             return ResponseEntity.ok(response);
 
