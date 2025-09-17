@@ -11,7 +11,8 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import reactor.netty.http.client.HttpClient;
 
 @Configuration
-public class WebConfig implements WebMvcConfigurer {
+public class
+WebConfig implements WebMvcConfigurer {
 
     @Bean
     public WebClient webClient() {

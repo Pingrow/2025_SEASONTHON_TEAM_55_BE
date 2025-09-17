@@ -12,12 +12,14 @@ import com.fingrow.domain.financial.deposit.repository.SavingProductRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 @Service
@@ -41,7 +43,31 @@ public class FinancialProductService {
     // =========================== 데이터 동기화 ===========================
 
     /**
-     * 예금 상품 데이터 동기화
+     * 비동기 전체 동기화 (예금 + 적금 병렬 처리)
+     */
+    @Async("syncTaskExecutor")
+    public CompletableFuture<String> syncAllProductsAsync() {
+        try {
+            log.info("비동기 전체 동기화 시작");
+
+            // 예금과 적금 동기화를 병렬로 실행
+            CompletableFuture<Void> depositSync = syncDepositProductsAsync();
+            CompletableFuture<Void> savingSync = syncSavingProductsAsync();
+
+            // 두 작업이 모두 완료될 때까지 대기
+            CompletableFuture.allOf(depositSync, savingSync).get();
+
+            log.info("비동기 전체 동기화 완료");
+            return CompletableFuture.completedFuture("전체 상품 데이터 동기화가 완료되었습니다.");
+
+        } catch (Exception e) {
+            log.error("비동기 전체 동기화 실패", e);
+            throw new RuntimeException("전체 동기화 실패: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 예금 상품 데이터 동기화 (기존 메서드)
      */
     public void syncDepositProducts() {
         try {
@@ -116,7 +142,169 @@ public class FinancialProductService {
     }
 
     /**
-     * 적금 상품 데이터 동기화
+     * 예금 상품 비동기 동기화 (배치 최적화)
+     */
+    @Async("syncTaskExecutor")
+    @Transactional
+    public CompletableFuture<Void> syncDepositProductsAsync() {
+        try {
+            String url = BASE_URL + "/depositProductsSearch.json?auth=" + apiKey + "&topFinGrpNo=020000&pageNo=1";
+            log.info("예금 상품 API 호출 (비동기): {}", url);
+
+            DepositApiResponse response = restTemplate.getForObject(url, DepositApiResponse.class);
+
+            if (response == null || response.getResult() == null) {
+                throw new RuntimeException("API 응답이 null입니다.");
+            }
+
+            // 기존 데이터 삭제
+            depositOptionRepository.deleteAll();
+            depositProductRepository.deleteAll();
+            log.info("기존 예금 데이터 삭제 완료 (비동기)");
+
+            // 배치로 상품 정보 저장
+            List<DepositProduct> products = new ArrayList<>();
+            if (response.getResult().getBaseList() != null) {
+                for (DepositProductDto dto : response.getResult().getBaseList()) {
+                    DepositProduct product = DepositProduct.builder()
+                            .finPrdtCd(dto.getFinPrdtCd())
+                            .korCoNm(dto.getKorCoNm())
+                            .finPrdtNm(dto.getFinPrdtNm())
+                            .joinWay(dto.getJoinWay())
+                            .mtrtInt(dto.getMtrtInt())
+                            .spclCnd(dto.getSpclCnd())
+                            .joinDeny(dto.getJoinDeny())
+                            .joinMember(dto.getJoinMember())
+                            .etcNote(dto.getEtcNote())
+                            .maxLimit(dto.getMaxLimit())
+                            .dclsMonth(dto.getDclsMonth())
+                            .dclsStrtDay(dto.getDclsStrtDay())
+                            .dclsEndDay(dto.getDclsEndDay())
+                            .finCoNo(dto.getFinCoNo())
+                            .build();
+                    products.add(product);
+                }
+            }
+
+            // 배치 저장
+            List<DepositProduct> savedProducts = depositProductRepository.saveAll(products);
+            Map<String, DepositProduct> productMap = savedProducts.stream()
+                    .collect(Collectors.toMap(DepositProduct::getFinPrdtCd, p -> p));
+
+            // 배치로 옵션 정보 저장
+            List<DepositOption> options = new ArrayList<>();
+            if (response.getResult().getOptionList() != null) {
+                for (DepositOptionDto dto : response.getResult().getOptionList()) {
+                    DepositProduct product = productMap.get(dto.getFinPrdtCd());
+                    if (product != null) {
+                        DepositOption option = DepositOption.builder()
+                                .depositProduct(product)
+                                .intrRateType(dto.getIntrRateType())
+                                .intrRateTypeNm(dto.getIntrRateTypeNm())
+                                .intrRate(dto.getIntrRate())
+                                .intrRate2(dto.getIntrRate2())
+                                .saveTrm(dto.getSaveTrm())
+                                .build();
+                        options.add(option);
+                    }
+                }
+            }
+
+            depositOptionRepository.saveAll(options);
+            log.info("예금 상품 데이터 동기화 완료 (비동기): {} 개 상품", products.size());
+
+            return CompletableFuture.completedFuture(null);
+
+        } catch (Exception e) {
+            log.error("예금 상품 데이터 동기화 실패 (비동기)", e);
+            throw new RuntimeException("예금 상품 데이터 동기화 실패: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 적금 상품 비동기 동기화 (배치 최적화)
+     */
+    @Async("syncTaskExecutor")
+    @Transactional
+    public CompletableFuture<Void> syncSavingProductsAsync() {
+        try {
+            String url = BASE_URL + "/savingProductsSearch.json?auth=" + apiKey + "&topFinGrpNo=020000&pageNo=1";
+            log.info("적금 상품 API 호출 (비동기): {}", url);
+
+            SavingApiResponse response = restTemplate.getForObject(url, SavingApiResponse.class);
+
+            if (response == null || response.getResult() == null) {
+                throw new RuntimeException("API 응답이 null입니다.");
+            }
+
+            // 기존 데이터 삭제
+            savingOptionRepository.deleteAll();
+            savingProductRepository.deleteAll();
+            log.info("기존 적금 데이터 삭제 완료 (비동기)");
+
+            // 배치로 상품 정보 저장
+            List<SavingProduct> products = new ArrayList<>();
+            if (response.getResult().getBaseList() != null) {
+                for (SavingProductDto dto : response.getResult().getBaseList()) {
+                    SavingProduct product = SavingProduct.builder()
+                            .finPrdtCd(dto.getFinPrdtCd())
+                            .korCoNm(dto.getKorCoNm())
+                            .finPrdtNm(dto.getFinPrdtNm())
+                            .joinWay(dto.getJoinWay())
+                            .mtrtInt(dto.getMtrtInt())
+                            .spclCnd(dto.getSpclCnd())
+                            .joinDeny(dto.getJoinDeny())
+                            .joinMember(dto.getJoinMember())
+                            .etcNote(dto.getEtcNote())
+                            .maxLimit(dto.getMaxLimit())
+                            .dclsMonth(dto.getDclsMonth())
+                            .dclsStrtDay(dto.getDclsStrtDay())
+                            .dclsEndDay(dto.getDclsEndDay())
+                            .finCoNo(dto.getFinCoNo())
+                            .build();
+                    products.add(product);
+                }
+            }
+
+            // 배치 저장
+            List<SavingProduct> savedProducts = savingProductRepository.saveAll(products);
+            Map<String, SavingProduct> productMap = savedProducts.stream()
+                    .collect(Collectors.toMap(SavingProduct::getFinPrdtCd, p -> p));
+
+            // 배치로 옵션 정보 저장
+            List<SavingOption> options = new ArrayList<>();
+            if (response.getResult().getOptionList() != null) {
+                for (SavingOptionDto dto : response.getResult().getOptionList()) {
+                    SavingProduct product = productMap.get(dto.getFinPrdtCd());
+                    if (product != null) {
+                        SavingOption option = SavingOption.builder()
+                                .savingProduct(product)
+                                .intrRateType(dto.getIntrRateType())
+                                .intrRateTypeNm(dto.getIntrRateTypeNm())
+                                .rsrvType(dto.getRsrvType())
+                                .rsrvTypeNm(dto.getRsrvTypeNm())
+                                .intrRate(dto.getIntrRate())
+                                .intrRate2(dto.getIntrRate2())
+                                .saveTrm(dto.getSaveTrm())
+                                .build();
+                        options.add(option);
+                    }
+                }
+            }
+
+            savingOptionRepository.saveAll(options);
+            log.info("적금 상품 데이터 동기화 완료 (비동기): {} 개 상품", products.size());
+
+            return CompletableFuture.completedFuture(null);
+
+        } catch (Exception e) {
+            log.error("적금 상품 데이터 동기화 실패 (비동기)", e);
+            throw new RuntimeException("적금 상품 데이터 동기화 실패: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 적금 상품 데이터 동기화 (기존 메서드)
      */
     public void syncSavingProducts() {
         try {

@@ -2,9 +2,9 @@ spring:
   profiles:
     active: dev
   datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:3306/fingrow?serverTimezone=UTC&characterEncoding=UTF-8&useSSL=false&allowPublicKeyRetrieval=true}
-    username: ${DB_USERNAME:fingrow}
-    password: ${DB_PASSWORD:fingrow123}
+    url: ${DB_URL:jdbc:mysql://pingrow-rds.c70uuq2mcwbq.ap-southeast-2.rds.amazonaws.com:3306/fingrow?serverTimezone=UTC&characterEncoding=UTF-8&useSSL=true&allowPublicKeyRetrieval=true}
+    username: ${DB_USERNAME:admin}
+    password: ${DB_PASSWORD:admin123}
     driver-class-name: com.mysql.cj.jdbc.Driver
   
   # JPA/Hibernate
@@ -16,7 +16,12 @@ spring:
         dialect: org.hibernate.dialect.MySQL8Dialect
         show_sql: true
         format_sql: true
+        hbm2ddl:
+          auto: update
+        globally_quoted_identifiers: true
     show-sql: true
+    defer-datasource-initialization: true
+    database-platform: org.hibernate.dialect.MySQL8Dialect
     
   # OAuth2 설정
   security:
@@ -67,3 +72,9 @@ finlife:
 krx:
   api:
     key: ${KRX_API_KEY}
+
+# 채권 API 설정
+bond:
+  api:
+    key: ${BOND_API_KEY:YOUR_BOND_API_KEY_HERE}
+

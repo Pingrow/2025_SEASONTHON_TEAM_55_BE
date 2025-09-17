@@ -1,7 +1,6 @@
 package com.fingrow.domain.onboard.entity;
 
 import com.fingrow.domain.user.entity.User;
-import com.fingrow.global.enums.InvestmentGoal;
 import com.fingrow.global.enums.InvestmentMethod;
 import com.fingrow.global.enums.LossTolerance;
 import com.fingrow.global.enums.PreferredInvestmentType;
@@ -36,18 +35,14 @@ public class InvestmentPreference {
     @Column(name = "risk_level", nullable = false)
     private RiskLevel riskLevel;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "investment_goal", nullable = false)
-    private InvestmentGoal investmentGoal;
+    @Column(name = "investment_goal", nullable = false, length = 100)
+    private String investmentGoal;
 
     @Column(name = "target_amount", precision = 15, scale = 2)
     private BigDecimal targetAmount;
 
-    @Column(name = "min_investment_period")
-    private Integer minInvestmentPeriod;
-
-    @Column(name = "max_investment_period") 
-    private Integer maxInvestmentPeriod;
+    @Column(name = "investment_period")
+    private Integer investmentPeriod;
 
     @ElementCollection(targetClass = PreferredInvestmentType.class, fetch = FetchType.LAZY)
     @Enumerated(EnumType.STRING)
@@ -78,31 +73,29 @@ public class InvestmentPreference {
     private LocalDateTime updatedAt;
 
     @Builder
-    public InvestmentPreference(User user, RiskLevel riskLevel, InvestmentGoal investmentGoal, 
-                               BigDecimal targetAmount, Integer minInvestmentPeriod, Integer maxInvestmentPeriod,
+    public InvestmentPreference(User user, RiskLevel riskLevel, String investmentGoal,
+                               BigDecimal targetAmount, Integer investmentPeriod,
                                Set<PreferredInvestmentType> preferredInvestmentTypes,
                                InvestmentMethod investmentMethod, LossTolerance lossTolerance, String address) {
         this.user = user;
         this.riskLevel = riskLevel;
         this.investmentGoal = investmentGoal;
         this.targetAmount = targetAmount;
-        this.minInvestmentPeriod = minInvestmentPeriod;
-        this.maxInvestmentPeriod = maxInvestmentPeriod;
+        this.investmentPeriod = investmentPeriod;
         this.preferredInvestmentTypes = preferredInvestmentTypes;
         this.investmentMethod = investmentMethod;
         this.lossTolerance = lossTolerance;
         this.address = address;
     }
 
-    public void updatePreferences(RiskLevel riskLevel, InvestmentGoal investmentGoal,
-                                 BigDecimal targetAmount, Integer minInvestmentPeriod, Integer maxInvestmentPeriod,
+    public void updatePreferences(RiskLevel riskLevel, String investmentGoal,
+                                 BigDecimal targetAmount, Integer investmentPeriod,
                                  Set<PreferredInvestmentType> preferredInvestmentTypes,
                                  InvestmentMethod investmentMethod, LossTolerance lossTolerance, String address) {
         this.riskLevel = riskLevel;
         this.investmentGoal = investmentGoal;
         this.targetAmount = targetAmount;
-        this.minInvestmentPeriod = minInvestmentPeriod;
-        this.maxInvestmentPeriod = maxInvestmentPeriod;
+        this.investmentPeriod = investmentPeriod;
         this.preferredInvestmentTypes = preferredInvestmentTypes;
         this.investmentMethod = investmentMethod;
         this.lossTolerance = lossTolerance;

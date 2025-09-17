@@ -55,7 +55,7 @@ public class OnboardService {
 
         InvestmentPreference preference = getOrCreateInvestmentPreference(user, request);
         OnboardDto.InvestmentAnalysis analysis = analyzeInvestmentProfile(request);
-        RiskLevel riskLevel = determineRiskLevel(request.getLossTolerance(), request.getMinInvestmentPeriod(), request.getMaxInvestmentPeriod(), request.getPreferredInvestmentTypes());
+        RiskLevel riskLevel = determineRiskLevel(request.getLossTolerance(), request.getInvestmentPeriod(), request.getPreferredInvestmentTypes(), request.getInvestmentMethod());
         List<OnboardDto.RecommendedProduct> products = createRecommendedProducts(riskLevel);
 
         return OnboardDto.SurveyResponse.builder()
@@ -68,7 +68,7 @@ public class OnboardService {
     private InvestmentPreference getOrCreateInvestmentPreference(User user, OnboardDto.SurveyRequest request) {
         Optional<InvestmentPreference> existing = investmentPreferenceRepository.findByUser(user);
         
-        RiskLevel riskLevel = determineRiskLevel(request.getLossTolerance(), request.getMinInvestmentPeriod(), request.getMaxInvestmentPeriod(), request.getPreferredInvestmentTypes());
+        RiskLevel riskLevel = determineRiskLevel(request.getLossTolerance(), request.getInvestmentPeriod(), request.getPreferredInvestmentTypes(), request.getInvestmentMethod());
         
         if (existing.isPresent()) {
             InvestmentPreference preference = existing.get();
@@ -76,8 +76,7 @@ public class OnboardService {
                     riskLevel,
                     request.getInvestmentGoal(),
                     request.getTargetAmount(),
-                    request.getMinInvestmentPeriod(),
-                    request.getMaxInvestmentPeriod(),
+                    request.getInvestmentPeriod(),
                     request.getPreferredInvestmentTypes(),
                     request.getInvestmentMethod(),
                     request.getLossTolerance(),
@@ -90,8 +89,7 @@ public class OnboardService {
                     .riskLevel(riskLevel)
                     .investmentGoal(request.getInvestmentGoal())
                     .targetAmount(request.getTargetAmount())
-                    .minInvestmentPeriod(request.getMinInvestmentPeriod())
-                    .maxInvestmentPeriod(request.getMaxInvestmentPeriod())
+                    .investmentPeriod(request.getInvestmentPeriod())
                     .preferredInvestmentTypes(request.getPreferredInvestmentTypes())
                     .investmentMethod(request.getInvestmentMethod())
                     .lossTolerance(request.getLossTolerance())
@@ -103,7 +101,7 @@ public class OnboardService {
 
     private OnboardDto.InvestmentAnalysis analyzeInvestmentProfile(OnboardDto.SurveyRequest request) {
         // 손실 감내도를 기준으로 투자 성향을 결정
-        RiskLevel riskLevel = determineRiskLevel(request.getLossTolerance(), request.getMinInvestmentPeriod(), request.getMaxInvestmentPeriod(), request.getPreferredInvestmentTypes());
+        RiskLevel riskLevel = determineRiskLevel(request.getLossTolerance(), request.getInvestmentPeriod(), request.getPreferredInvestmentTypes(), request.getInvestmentMethod());
         
         String riskProfile = getRiskProfile(riskLevel);
         String investmentStrategy = getInvestmentStrategy(riskLevel);
@@ -205,14 +203,54 @@ public class OnboardService {
     private OnboardDto.GoalOption[] getGoalOptions() {
         return new OnboardDto.GoalOption[]{
                 OnboardDto.GoalOption.builder()
-                        .value(InvestmentGoal.RETIREMENT)
+                        .value("은퇴 준비")
                         .label("은퇴 준비")
                         .description("노후 자금 마련")
                         .build(),
                 OnboardDto.GoalOption.builder()
-                        .value(InvestmentGoal.HOME_PURCHASE)
+                        .value("주택 마련")
                         .label("주택 마련")
                         .description("내 집 마련 자금")
+                        .build(),
+                OnboardDto.GoalOption.builder()
+                        .value("교육비 준비")
+                        .label("교육비 준비")
+                        .description("자녀 교육비 마련")
+                        .build(),
+                OnboardDto.GoalOption.builder()
+                        .value("비상 자금")
+                        .label("비상 자금")
+                        .description("응급상황 대비 자금")
+                        .build(),
+                OnboardDto.GoalOption.builder()
+                        .value("자산 증대")
+                        .label("자산 증대")
+                        .description("보유 자산 확대")
+                        .build(),
+                OnboardDto.GoalOption.builder()
+                        .value("여행 자금")
+                        .label("여행 자금")
+                        .description("여행 및 휴가 자금")
+                        .build(),
+                OnboardDto.GoalOption.builder()
+                        .value("결혼 자금")
+                        .label("결혼 자금")
+                        .description("결혼 준비 자금")
+                        .build(),
+                OnboardDto.GoalOption.builder()
+                        .value("자동차 구매")
+                        .label("자동차 구매")
+                        .description("차량 구매 자금")
+                        .build(),
+                OnboardDto.GoalOption.builder()
+                        .value("창업")
+                        .label("창업")
+                        .description("사업 시작 자금")
+                        .build(),
+                OnboardDto.GoalOption.builder()
+                        .value("기타")
+                        .label("기타")
+                        .description("기타 목적")
                         .build()
         };
     }
@@ -293,29 +331,85 @@ public class OnboardService {
         };
     }
 
-    private RiskLevel determineRiskLevel(LossTolerance lossTolerance, Integer minPeriod, Integer maxPeriod, Set<PreferredInvestmentType> investmentTypes) {
-        // 손실 감내도를 기반으로 우선 분류
+    private RiskLevel determineRiskLevel(LossTolerance lossTolerance, Integer investmentPeriod, Set<PreferredInvestmentType> investmentTypes, InvestmentMethod investmentMethod) {
+        // Rule-based 투자 성향 분석: 3가지 요소를 종합적으로 고려
+        // 1. 손실 감내도 2. 투자 방식 3. 선호 투자 유형
+
+        int riskScore = calculateRiskScore(lossTolerance, investmentMethod, investmentTypes);
+
+        // 점수 기반 투자 성향 결정
+        if (riskScore <= 3) {
+            return RiskLevel.STABLE;
+        } else if (riskScore <= 5) {
+            return RiskLevel.STABILITY_SEEKING;
+        } else if (riskScore <= 7) {
+            return RiskLevel.RISK_NEUTRAL;
+        } else if (riskScore <= 9) {
+            return RiskLevel.ACTIVE_INVESTMENT;
+        } else {
+            return RiskLevel.AGGRESSIVE_INVESTMENT;
+        }
+    }
+
+    private int calculateRiskScore(LossTolerance lossTolerance, InvestmentMethod investmentMethod, Set<PreferredInvestmentType> investmentTypes) {
+        int score = 0;
+
+        // 1. 손실 감내도 점수 (0-4점)
         switch (lossTolerance) {
             case NONE:
-                return RiskLevel.STABLE;
+                score += 0;
+                break;
             case TEN_PERCENT:
-                return RiskLevel.STABILITY_SEEKING;
+                score += 2;
+                break;
             case TWENTY_TO_THIRTY_PERCENT:
-                return RiskLevel.RISK_NEUTRAL;
+                score += 3;
+                break;
             case HALF_OR_MORE:
-                // 기간과 투자 유형으로 세분화
-                boolean isLongTerm = maxPeriod != null && maxPeriod >= 60; // 5년 이상
-                boolean hasHighRiskTypes = investmentTypes.contains(PreferredInvestmentType.ETF) || 
-                                         investmentTypes.contains(PreferredInvestmentType.FUNDS);
-                
-                if (isLongTerm && hasHighRiskTypes) {
-                    return RiskLevel.AGGRESSIVE_INVESTMENT;
-                } else {
-                    return RiskLevel.ACTIVE_INVESTMENT;
-                }
-            default:
-                return RiskLevel.STABLE;
+                score += 4;
+                break;
         }
+
+        // 2. 투자 방식 점수 (0-3점)
+        switch (investmentMethod) {
+            case ONE_TIME_ONE_PLACE:
+                score += 1; // 가장 보수적
+                break;
+            case ONE_TIME_MULTIPLE_PLACES:
+                score += 2; // 분산투자 선호
+                break;
+            case MULTIPLE_TIMES_ONE_PLACE:
+                score += 2; // 적립식 투자
+                break;
+            case MULTIPLE_TIMES_MULTIPLE_PLACES:
+                score += 3; // 가장 적극적인 분산투자
+                break;
+        }
+
+        // 3. 선호 투자 유형 점수 (0-4점)
+        int typeScore = 0;
+        if (investmentTypes.contains(PreferredInvestmentType.DEPOSIT_SAVINGS)) {
+            typeScore += 0; // 가장 안전
+        }
+        if (investmentTypes.contains(PreferredInvestmentType.GOVERNMENT_BONDS)) {
+            typeScore += 1; // 안전
+        }
+        if (investmentTypes.contains(PreferredInvestmentType.ETF)) {
+            typeScore += 2; // 중간 위험
+        }
+        if (investmentTypes.contains(PreferredInvestmentType.FUNDS)) {
+            typeScore += 3; // 높은 위험
+        }
+
+        // 복수 선택시 가중치 적용
+        int selectedCount = investmentTypes.size();
+        if (selectedCount > 1) {
+            typeScore = (int) Math.ceil(typeScore * 0.8); // 분산 선호시 약간 보수적으로
+        }
+
+        score += Math.min(typeScore, 4); // 최대 4점으로 제한
+
+        return Math.min(score, 11); // 최대 11점으로 제한
     }
 
     private String getRiskProfile(RiskLevel riskLevel) {

@@ -42,13 +42,13 @@ public class CorsConfig implements WebMvcConfigurer {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        
+
         // Flutter 안드로이드 앱을 위한 설정
         configuration.setAllowedOriginPatterns(Arrays.asList("*"));
         configuration.setAllowedMethods(Arrays.asList("HEAD", "POST", "GET", "DELETE", "PUT", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList(
             "Origin",
-            "Content-Type", 
+            "Content-Type",
             "Accept",
             "Authorization",
             "Access-Control-Allow-Origin",
