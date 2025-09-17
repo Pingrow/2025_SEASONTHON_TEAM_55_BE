@@ -23,8 +23,7 @@ public class AuthDto {
     @AllArgsConstructor
     public static class LoginResponse {
         private String accessToken;
-        private String refreshToken;
-        private UserInfo userInfo;
+        private UserInfo user;
     }
 
     @Getter
@@ -36,25 +35,8 @@ public class AuthDto {
         private String email;
         private String name;
         private String profileImage;
-        private User.Provider provider;
-        private User.Role role;
-    }
-
-    @Getter
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class TokenRefreshRequest {
-        private String refreshToken;
-    }
-
-    @Getter
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class TokenRefreshResponse {
-        private String accessToken;
-        private String refreshToken;
+        private String provider;
+        private String role;
     }
 
     @Getter
@@ -62,7 +44,7 @@ public class AuthDto {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class KakaoLoginRequest {
-        private String code;
-        private String redirectUri;
+        private String accessToken;
     }
+
 }

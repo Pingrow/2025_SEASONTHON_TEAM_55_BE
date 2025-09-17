@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 public class CallbackController {
 
     @Operation(summary = "카카오 OAuth 콜백", description = "카카오 로그인 후 리다이렉트되는 콜백을 처리합니다.")
-    @GetMapping("/callback")
+    @GetMapping("/oauth/callback/kakao")
     public String handleKakaoCallback(@RequestParam(value = "code", required = false) String code,
                                     @RequestParam(value = "error", required = false) String error,
                                     @RequestParam(value = "state", required = false) String state) {
@@ -22,15 +22,15 @@ public class CallbackController {
         
         if (error != null) {
             log.error("카카오 로그인 오류: {}", error);
-            return "redirect:/test/kakao-login.html?error=" + error;
+            return "redirect:/login-test.html?error=" + error;
         }
-        
+
         if (code != null) {
             log.info("카카오 인증 코드 수신: {}", code);
-            return "redirect:/test/kakao-login.html?code=" + code;
+            return "redirect:/login-test.html?code=" + code;
         }
-        
+
         log.warn("카카오 콜백에서 코드나 오류를 받지 못함");
-        return "redirect:/test/kakao-login.html";
+        return "redirect:/login-test.html";
     }
 }
