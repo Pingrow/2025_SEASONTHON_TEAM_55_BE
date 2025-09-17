@@ -65,15 +65,4 @@ public class DepositProduct {
     @OneToMany(mappedBy = "depositProduct", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @Builder.Default
     private List<DepositOption> options = new ArrayList<>();
-
-    // 편의 메서드
-    public void addOption(DepositOption option) {
-        this.options.add(option);
-        option.setDepositProduct(this);
-    }
-
-    public void removeOption(DepositOption option) {
-        this.options.remove(option);
-        option.setDepositProduct(null);
-    }
 }
