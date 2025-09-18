@@ -21,6 +21,7 @@ public class OnboardDto {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class OnboardRequest {
+        private Long userId;
         private RiskLevel riskLevel;
         private String investmentGoal;
         private BigDecimal targetAmount;

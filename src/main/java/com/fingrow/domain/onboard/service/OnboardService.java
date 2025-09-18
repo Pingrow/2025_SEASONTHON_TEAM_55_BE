@@ -65,38 +65,23 @@ public class OnboardService {
                 .build();
     }
 
+    // 이후에 수정하게 되면 Portfolio에서 수정 및 저장
     private InvestmentPreference getOrCreateInvestmentPreference(User user, OnboardDto.SurveyRequest request) {
-        Optional<InvestmentPreference> existing = investmentPreferenceRepository.findByUser(user);
-        
         RiskLevel riskLevel = determineRiskLevel(request.getLossTolerance(), request.getInvestmentPeriod(), request.getPreferredInvestmentTypes(), request.getInvestmentMethod());
-        
-        if (existing.isPresent()) {
-            InvestmentPreference preference = existing.get();
-            preference.updatePreferences(
-                    riskLevel,
-                    request.getInvestmentGoal(),
-                    request.getTargetAmount(),
-                    request.getInvestmentPeriod(),
-                    request.getPreferredInvestmentTypes(),
-                    request.getInvestmentMethod(),
-                    request.getLossTolerance(),
-                    request.getAddress()
-            );
-            return investmentPreferenceRepository.save(preference);
-        } else {
-            InvestmentPreference newPreference = InvestmentPreference.builder()
-                    .user(user)
-                    .riskLevel(riskLevel)
-                    .investmentGoal(request.getInvestmentGoal())
-                    .targetAmount(request.getTargetAmount())
-                    .investmentPeriod(request.getInvestmentPeriod())
-                    .preferredInvestmentTypes(request.getPreferredInvestmentTypes())
-                    .investmentMethod(request.getInvestmentMethod())
-                    .lossTolerance(request.getLossTolerance())
-                    .address(request.getAddress())
-                    .build();
-            return investmentPreferenceRepository.save(newPreference);
-        }
+
+        InvestmentPreference preference = InvestmentPreference.builder()
+                .user(user)
+                .riskLevel(riskLevel)
+                .investmentGoal(request.getInvestmentGoal())
+                .targetAmount(request.getTargetAmount())
+                .investmentPeriod(request.getInvestmentPeriod())
+                .preferredInvestmentTypes(request.getPreferredInvestmentTypes())
+                .investmentMethod(request.getInvestmentMethod())
+                .lossTolerance(request.getLossTolerance())
+                .address(request.getAddress())
+                .build();
+
+        return investmentPreferenceRepository.save(preference);
     }
 
     private OnboardDto.InvestmentAnalysis analyzeInvestmentProfile(OnboardDto.SurveyRequest request) {
