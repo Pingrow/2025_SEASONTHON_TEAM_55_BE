@@ -6,6 +6,7 @@ import com.fingrow.domain.financial.etf.repository.EtfProductRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
@@ -19,6 +20,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 
 @Service
 @Transactional
@@ -36,7 +38,39 @@ public class EtfService {
     private static final String KRX_BASE_URL = "https://apis.data.go.kr/1160100/service/GetSecuritiesProductInfoService";
 
     // =========================== 동기화 ===========================
+
+    // 비동기 동기화 메서드
+    @Async
+    @Transactional
+    public CompletableFuture<EtfDto.SyncResponse> syncAllEtfDataAsync() {
+        try {
+            log.info("비동기 ETF 데이터 동기화 시작");
+            EtfDto.SyncResponse result = syncAllEtfDataInternal();
+            log.info("비동기 ETF 데이터 동기화 완료: 성공 {}, 실패 {}", result.getSuccessCount(), result.getFailureCount());
+            return CompletableFuture.completedFuture(result);
+        } catch (Exception e) {
+            log.error("비동기 ETF 데이터 동기화 실패", e);
+            EtfDto.SyncResponse errorResponse = EtfDto.SyncResponse.builder()
+                    .syncType("ALL")
+                    .totalProcessed(0)
+                    .successCount(0)
+                    .failureCount(1)
+                    .failureReasons(List.of("비동기 동기화 실패: " + e.getMessage()))
+                    .startTime(LocalDateTime.now().toString())
+                    .endTime(LocalDateTime.now().toString())
+                    .duration("00:00:00")
+                    .build();
+            return CompletableFuture.completedFuture(errorResponse);
+        }
+    }
+
+    // 기존 동기 메서드
     public EtfDto.SyncResponse syncAllEtfData() {
+        return syncAllEtfDataInternal();
+    }
+
+    // 실제 동기화 로직 (내부 메서드)
+    private EtfDto.SyncResponse syncAllEtfDataInternal() {
         LocalDateTime startTime = LocalDateTime.now();
         int totalProcessed = 0, successCount = 0, failureCount = 0;
         List<String> failureReasons = new ArrayList<>();

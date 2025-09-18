@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientException;
 
+import java.util.concurrent.CompletableFuture;
+
 @RestController
 @RequestMapping("/api/etf")
 @CrossOrigin(origins = "*")
@@ -76,6 +78,55 @@ public class EtfController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(EtfDto.ApiResponse.error("ETF 동기화에 실패했습니다: " + e.getMessage()));
         }
+    }
+
+    // 비동기 동기화 엔드포인트
+    @PostMapping("/sync/async")
+    @Operation(
+            summary = "ETF 데이터 비동기 동기화",
+            description = "KRX API를 비동기로 호출해 ETF 상품과 시세 정보를 동기화합니다. 응답이 즉시 반환됩니다."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "비동기 동기화 시작됨"),
+            @ApiResponse(responseCode = "500", description = "서버 내부 오류")
+    })
+    public CompletableFuture<ResponseEntity<EtfDto.ApiResponse<EtfDto.SyncResponse>>> syncEtfDataAsync() {
+        log.info("ETF 데이터 비동기 동기화 시작");
+
+        CompletableFuture<EtfDto.SyncResponse> future = etfService.syncAllEtfDataAsync();
+
+        return future.thenApply(this::handleSyncResponse)
+                    .exceptionally(this::handleSyncError);
+    }
+
+    private ResponseEntity<EtfDto.ApiResponse<EtfDto.SyncResponse>> handleSyncResponse(EtfDto.SyncResponse syncResponse) {
+        // 부분 실패인 경우와 완전 성공인 경우 구분
+        if (syncResponse.getFailureCount() > 0 && syncResponse.getSuccessCount() == 0) {
+            // 완전 실패
+            log.error("ETF 비동기 동기화 완전 실패 - 성공: {}개, 실패: {}개",
+                    syncResponse.getSuccessCount(), syncResponse.getFailureCount());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(EtfDto.ApiResponse.error("ETF 비동기 동기화에 실패했습니다."));
+        } else if (syncResponse.getFailureCount() > 0) {
+            // 부분 실패
+            log.warn("ETF 비동기 동기화 부분 실패 - 성공: {}개, 실패: {}개",
+                    syncResponse.getSuccessCount(), syncResponse.getFailureCount());
+            String message = String.format("ETF 비동기 동기화 부분 완료 - 성공: %d개, 실패: %d개",
+                    syncResponse.getSuccessCount(), syncResponse.getFailureCount());
+            return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT)
+                    .body(EtfDto.ApiResponse.success(message, syncResponse));
+        } else {
+            // 완전 성공
+            log.info("ETF 비동기 동기화 완료 - 성공: {}개", syncResponse.getSuccessCount());
+            String message = String.format("ETF 비동기 동기화 완료 - 성공: %d개", syncResponse.getSuccessCount());
+            return ResponseEntity.ok(EtfDto.ApiResponse.success(message, syncResponse));
+        }
+    }
+
+    private ResponseEntity<EtfDto.ApiResponse<EtfDto.SyncResponse>> handleSyncError(Throwable ex) {
+        log.error("ETF 비동기 동기화 중 예상치 못한 오류 발생", ex);
+        EtfDto.ApiResponse<EtfDto.SyncResponse> errorResponse = EtfDto.ApiResponse.error("ETF 비동기 동기화에 실패했습니다: " + ex.getMessage());
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
     }
 
     // =========================== 조회 ===========================

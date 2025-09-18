@@ -14,7 +14,6 @@ import lombok.*;
 public class RecommendationRequest {
 
     @NotNull(message = "목표 금액은 필수입니다.")
-    @Min(value = 1000000, message = "목표 금액은 최소 30만원 이상이어야 합니다.")
     @Schema(description = "목표 금액", example = "3000000", required = true)
     private Long targetAmount;
 
