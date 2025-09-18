@@ -66,14 +66,4 @@ public class SavingProduct {
     @Builder.Default
     private List<SavingOption> options = new ArrayList<>();
 
-    // 편의 메서드
-    public void addOption(SavingOption option) {
-        this.options.add(option);
-        option.setSavingProduct(this);
-    }
-
-    public void removeOption(SavingOption option) {
-        this.options.remove(option);
-        option.setSavingProduct(null);
-    }
 }
