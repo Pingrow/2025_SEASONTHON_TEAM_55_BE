@@ -124,14 +124,11 @@ public class OnboardController {
             response.put("riskLevel", pref.getRiskLevel());
             response.put("investmentGoal", pref.getInvestmentGoal());
             response.put("targetAmount", pref.getTargetAmount());
-            response.put("minInvestmentPeriod", pref.getMinInvestmentPeriod());
-            response.put("maxInvestmentPeriod", pref.getMaxInvestmentPeriod());
+            response.put("investmentPeriod", pref.getInvestmentPeriod());
             response.put("preferredInvestmentTypes", pref.getPreferredInvestmentTypes());
             response.put("investmentMethod", pref.getInvestmentMethod());
             response.put("lossTolerance", pref.getLossTolerance());
             response.put("address", pref.getAddress());
-            response.put("createdAt", pref.getCreatedAt());
-            response.put("updatedAt", pref.getUpdatedAt());
 
             return ResponseEntity.ok(response);
 

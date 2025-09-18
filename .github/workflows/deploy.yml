@@ -1,0 +1,103 @@
+name: Deploy to Server
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  DOCKER_IMAGE: fingrow/fingrow-app
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+    - name: Deploy to server via SSH
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.SERVER_HOST }}
+        username: ${{ secrets.SERVER_USER }}
+        key: ${{ secrets.SERVER_SSH_KEY }}
+        script: |
+          # Navigate to application directory
+          cd /opt/fingrow || mkdir -p /opt/fingrow && cd /opt/fingrow
+
+          # Pull latest Docker image
+          docker pull ${{ env.DOCKER_IMAGE }}:latest
+
+          # Stop existing container
+          docker-compose down || true
+
+          # Update docker-compose.yml if needed
+          cat > docker-compose.yml << 'EOF'
+          version: '3.8'
+
+          services:
+            app:
+              image: ${{ env.DOCKER_IMAGE }}:latest
+              container_name: fingrow-app
+              restart: unless-stopped
+              ports:
+                - "8080:8080"
+              environment:
+                - SPRING_DATASOURCE_URL=${{ secrets.DB_URL }}
+                - SPRING_DATASOURCE_USERNAME=${{ secrets.DB_USERNAME }}
+                - SPRING_DATASOURCE_PASSWORD=${{ secrets.DB_PASSWORD }}
+                - JWT_SECRET=${{ secrets.JWT_SECRET }}
+                - JWT_ACCESS_TOKEN_VALIDITY_IN_SECONDS=${{ secrets.JWT_ACCESS_TOKEN_VALIDITY }}
+                - JWT_REFRESH_TOKEN_VALIDITY_IN_SECONDS=${{ secrets.JWT_REFRESH_TOKEN_VALIDITY }}
+                - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_KAKAO_CLIENT_ID=${{ secrets.KAKAO_CLIENT_ID }}
+                - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_KAKAO_CLIENT_SECRET=${{ secrets.KAKAO_CLIENT_SECRET }}
+                - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_KAKAO_REDIRECT_URI=${{ secrets.KAKAO_REDIRECT_URI }}
+                - FINLIFE_API_KEY=${{ secrets.FINLIFE_API_KEY }}
+                - BOND_API_KEY=${{ secrets.BOND_API_KEY }}
+                - KRX_API_KEY=${{ secrets.KRX_API_KEY }}
+                - YOUTH_API_KEY=${{ secrets.YOUTH_API_KEY }}
+                - JUSO_API_KEY=${{ secrets.JUSO_API_KEY }}
+              healthcheck:
+                test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+                interval: 30s
+                timeout: 10s
+                retries: 3
+                start_period: 60s
+          EOF
+
+          # Start new container
+          docker-compose up -d
+
+          # Wait for health check
+          echo "Waiting for application to start..."
+          for i in {1..30}; do
+            if curl -f http://localhost:8080/actuator/health 2>/dev/null; then
+              echo "✅ Application is healthy!"
+              exit 0
+            fi
+            echo "Waiting... ($i/30)"
+            sleep 10
+          done
+
+          echo "❌ Application failed to start properly"
+          docker-compose logs
+          exit 1
+
+    - name: Cleanup old Docker images
+      uses: appleboy/ssh-action@v1.0.3
+      if: always()
+      with:
+        host: ${{ secrets.SERVER_HOST }}
+        username: ${{ secrets.SERVER_USER }}
+        key: ${{ secrets.SERVER_SSH_KEY }}
+        script: |
+          # Remove unused Docker images to save space
+          docker image prune -af --filter "until=72h"
+
+    - name: Notify deployment status
+      if: always()
+      run: |
+        if [ ${{ job.status }} == 'success' ]; then
+          echo "✅ Deployment successful!"
+        else
+          echo "❌ Deployment failed!"
+        fi

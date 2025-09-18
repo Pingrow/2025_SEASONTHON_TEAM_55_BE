@@ -34,11 +34,25 @@ public class KakaoOAuthService {
     public User processKakaoLogin(String authorizationCode) {
         // 1. 인가 코드로 액세스 토큰 획득
         String accessToken = getKakaoAccessToken(authorizationCode);
-        
+
         // 2. 액세스 토큰으로 사용자 정보 조회
         Map<String, Object> userInfo = getKakaoUserInfo(accessToken);
-        
+
         // 3. 사용자 정보로 회원가입 또는 로그인 처리
+        return saveOrUpdateUser(userInfo);
+    }
+
+    public User processKakaoLoginWithToken(String kakaoAccessToken) {
+        // 테스트용 토큰 처리
+        if ("test_kakao_access_token".equals(kakaoAccessToken)) {
+            return userRepository.findByProviderAndProviderId(User.Provider.KAKAO, "test_kakao_id_123")
+                    .orElseThrow(() -> new RuntimeException("테스트 사용자를 찾을 수 없습니다."));
+        }
+
+        // 1. 플러터에서 받은 카카오 액세스 토큰으로 사용자 정보 조회
+        Map<String, Object> userInfo = getKakaoUserInfo(kakaoAccessToken);
+
+        // 2. 사용자 정보로 회원가입 또는 로그인 처리
         return saveOrUpdateUser(userInfo);
     }
 

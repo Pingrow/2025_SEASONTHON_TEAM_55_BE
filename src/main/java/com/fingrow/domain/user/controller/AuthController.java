@@ -34,50 +34,51 @@ public class AuthController {
     private final UserRepository userRepository;
     private final KakaoOAuthService kakaoOAuthService;
 
-    @Operation(summary = "카카오 로그인", description = "카카오 인증 코드를 받아 JWT 토큰을 발급합니다.")
+    @Operation(summary = "카카오 로그인", description = "플러터에서 받은 카카오 액세스 토큰으로 로그인합니다.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "로그인 성공",
                     content = @Content(mediaType = "application/json",
-                            schema = @Schema(example = "{\"accessToken\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\", \"refreshToken\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\", \"user\": {\"id\": 1, \"email\": \"user@example.com\", \"name\": \"홍길동\"}}"))),
-            @ApiResponse(responseCode = "400", description = "잘못된 인증 코드 또는 로그인 실패")
+                            schema = @Schema(example = "{\"accessToken\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\", \"user\": {\"id\": 1, \"email\": \"user@example.com\", \"name\": \"홍길동\", \"profileImage\": \"profile_url\", \"provider\": \"KAKAO\", \"role\": \"USER\"}}"))),
+            @ApiResponse(responseCode = "400", description = "잘못된 액세스 토큰 또는 로그인 실패")
     })
-    @PostMapping("/kakao")
+    @PostMapping(value = "/kakao", consumes = {"application/json", "application/x-www-form-urlencoded"})
     public ResponseEntity<?> kakaoLogin(
-            @Parameter(description = "카카오 인증 코드", required = true,
-                    schema = @Schema(example = "{\"code\": \"authorization_code_from_kakao\"}"))
-            @RequestBody Map<String, String> request) {
+            @Parameter(description = "카카오 액세스 토큰", required = true,
+                    schema = @Schema(example = "{\"accessToken\": \"kakao_access_token_from_flutter\"}"))
+            @RequestBody AuthDto.KakaoLoginRequest request) {
         try {
-            String authorizationCode = request.get("code");
-            
-            if (authorizationCode == null || authorizationCode.isEmpty()) {
-                return ResponseEntity.badRequest().body("Authorization code is required");
+            String kakaoAccessToken = request.getAccessToken();
+
+            if (kakaoAccessToken == null || kakaoAccessToken.isEmpty()) {
+                return ResponseEntity.badRequest().body("Kakao access token is required");
             }
-            
-            // 카카오 OAuth 처리
-            User user = kakaoOAuthService.processKakaoLogin(authorizationCode);
-            
-            // JWT 토큰 생성
+
+            // 카카오 액세스 토큰으로 사용자 정보 조회 및 처리
+            User user = kakaoOAuthService.processKakaoLoginWithToken(kakaoAccessToken);
+
+            // 서버 JWT 토큰 생성
             String accessToken = jwtUtil.generateAccessToken(user.getId().toString());
-            String refreshToken = jwtUtil.generateRefreshToken(user.getId().toString());
-            
-            Map<String, Object> response = new HashMap<>();
-            response.put("accessToken", accessToken);
-            response.put("refreshToken", refreshToken);
-            response.put("user", Map.of(
-                    "id", user.getId(),
-                    "email", user.getEmail(),
-                    "name", user.getName(),
-                    "profileImage", user.getProfileImage(),
-                    "provider", user.getProvider(),
-                    "role", user.getRole()
-            ));
-            
+
+            // 응답 생성
+            AuthDto.LoginResponse response = AuthDto.LoginResponse.builder()
+                    .accessToken(accessToken)
+                    .user(AuthDto.UserInfo.builder()
+                            .id(user.getId())
+                            .email(user.getEmail())
+                            .name(user.getName())
+                            .profileImage(user.getProfileImage())
+                            .provider(user.getProvider().name())
+                            .role(user.getRole().name())
+                            .build())
+                    .build();
+
             return ResponseEntity.ok(response);
-            
+
         } catch (Exception e) {
             log.error("Kakao login failed", e);
             return ResponseEntity.badRequest().body("로그인에 실패했습니다: " + e.getMessage());
         }
     }
+
 
 }

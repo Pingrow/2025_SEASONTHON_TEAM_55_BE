@@ -16,22 +16,15 @@ public class JwtUtil {
 
     private final SecretKey key;
     private final long accessTokenValidityInSeconds;
-    private final long refreshTokenValidityInSeconds;
 
     public JwtUtil(@Value("${jwt.secret}") String secretKey,
-                   @Value("${jwt.access-token-validity-in-seconds}") long accessTokenValidityInSeconds,
-                   @Value("${jwt.refresh-token-validity-in-seconds}") long refreshTokenValidityInSeconds) {
+                   @Value("${jwt.access-token-validity-in-seconds}") long accessTokenValidityInSeconds) {
         this.key = Keys.hmacShaKeyFor(secretKey.getBytes());
         this.accessTokenValidityInSeconds = accessTokenValidityInSeconds;
-        this.refreshTokenValidityInSeconds = refreshTokenValidityInSeconds;
     }
 
     public String generateAccessToken(String userId) {
         return generateToken(userId, accessTokenValidityInSeconds);
-    }
-
-    public String generateRefreshToken(String userId) {
-        return generateToken(userId, refreshTokenValidityInSeconds);
     }
 
     private String generateToken(String userId, long validityInSeconds) {

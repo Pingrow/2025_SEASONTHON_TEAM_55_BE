@@ -30,27 +30,19 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/v1/auth/**").permitAll()
-
-                        // 온보딩 API 경로 추가 - 설문 문항 조회는 public, 나머지는 인증 필요
-                        .requestMatchers("/api/v1/onboard/questions").permitAll()
-                        
-                        // 테스트 API 경로 추가 - 테스트용 API는 public
-                        .requestMatchers("/api/v1/test/**").permitAll()
-
-                        // 카카오 콜백 경로 추가
-                        .requestMatchers("/callback").permitAll()
+                        // 모든 API 경로 허용 (개발/테스트용)
+                        .requestMatchers("/api/**").permitAll()
 
                         // 정적 파일 접근 허용
                         .requestMatchers("/test/**").permitAll()
                         .requestMatchers("/static/**").permitAll()
                         .requestMatchers("/*.html").permitAll()
 
-                        // 금융상품 API 경로 추가 - 모든 HTTP 메서드 허용
-                        .requestMatchers("/api/financial/**").permitAll()
-                        .requestMatchers("/api/financial/sync/**").permitAll()
+                        // 콜백 경로
+                        .requestMatchers("/oauth/**").permitAll()
+                        .requestMatchers("/callback").permitAll()
 
-                        // Swagger 관련 경로 정리(하단)
+                        // Swagger 관련 경로
                         .requestMatchers("/swagger-ui/**").permitAll()
                         .requestMatchers("/swagger-ui.html").permitAll()
                         .requestMatchers("/v3/api-docs/**").permitAll()
@@ -58,7 +50,7 @@ public class SecurityConfig {
                         .requestMatchers("/swagger-resources/**").permitAll()
                         .requestMatchers("/webjars/**").permitAll()
 
-                        .anyRequest().authenticated()
+                        .anyRequest().permitAll()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
